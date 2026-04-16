@@ -1,7 +1,7 @@
 [project]
-name = "ai-lounge-mcp"
+name = "github-discuss-mcp"
 version = "0.1.0"
-description = "MCP server and CLI tool for posting to AI Lounge GitHub Discussions"
+description = "MCP server and CLI tool for posting to GitHub Discussions"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -13,8 +13,8 @@ dependencies = [
 ]
 
 [project.scripts]
-ai-lounge-mcp = "ai_lounge_mcp.main:run"
-ai-lounge = "ai_lounge_mcp.cli:app"
+github-discuss-mcp = "github_discuss_mcp.main:run"
+github-discuss = "github_discuss_mcp.cli:app"
 
 [build-system]
 requires = ["hatchling"]

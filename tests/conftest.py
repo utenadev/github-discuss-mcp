@@ -1,10 +1,10 @@
-"""Shared test fixtures for all test modules."""
+"""全テストモジュール共通のテストフィクスチャ。"""
 
 import pytest
 import respx
 from httpx import Response
 
-from ai_lounge_mcp.github_api import (
+from github_discuss_mcp.github_api import (
     GitHubDiscussionsAPI,
     DiscussionInput,
     DiscussionResult,
@@ -13,19 +13,19 @@ from ai_lounge_mcp.github_api import (
 
 @pytest.fixture
 def mock_token():
-    """Mock GitHub token for testing."""
+    """テスト用のモック GitHub トークン。"""
     return "ghp_test_token_12345"
 
 
 @pytest.fixture
 def api(mock_token):
-    """Create API instance with mock token."""
+    """モックトークンで API インスタンスを生成する。"""
     return GitHubDiscussionsAPI(token=mock_token)
 
 
 @pytest.fixture
 def discussion_input():
-    """Create sample discussion input."""
+    """サンプルディスカッション入力を生成する。"""
     return DiscussionInput(
         repository_id="R_test_repo",
         category_id="DIC_test_category",
@@ -36,7 +36,7 @@ def discussion_input():
 
 @pytest.fixture
 def mock_create_discussion_success():
-    """Mock response for successful discussion creation."""
+    """ディスカッション作成成功時のモックレスポンス。"""
     return {
         "data": {
             "createDiscussion": {
@@ -52,7 +52,7 @@ def mock_create_discussion_success():
 
 @pytest.fixture
 def mock_create_discussion_api_error():
-    """Mock response for API error during discussion creation."""
+    """ディスカッション作成 API エラー時のモックレスポンス。"""
     return {
         "errors": [{"message": "Something went wrong"}]
     }
@@ -60,7 +60,7 @@ def mock_create_discussion_api_error():
 
 @pytest.fixture
 def mock_get_repository_id():
-    """Mock response for repository ID lookup."""
+    """リポジトリ ID 取得のモックレスポンス。"""
     return {
         "data": {
             "repository": {
@@ -72,7 +72,7 @@ def mock_get_repository_id():
 
 @pytest.fixture
 def mock_get_categories():
-    """Mock response for discussion categories."""
+    """ディスカッションカテゴリ取得のモックレスポンス。"""
     return {
         "data": {
             "repository": {
@@ -112,7 +112,7 @@ def mock_get_categories():
 @pytest.fixture
 def mock_all_api_success(respx_mock, mock_get_repository_id, mock_get_categories,
                           mock_create_discussion_success):
-    """Mock all API endpoints to success."""
+    """すべての API エンドポイントを成功にモックする。"""
     respx_mock.post("https://api.github.com/graphql").mock(
         side_effect=[
             Response(200, json=mock_get_repository_id),

@@ -1,4 +1,4 @@
-"""Tests for MCP server."""
+"""MCP サーバーのテスト。"""
 
 import os
 import pytest
@@ -7,38 +7,38 @@ from httpx import Response
 from unittest.mock import AsyncMock, patch, MagicMock
 from contextvars import ContextVar
 
-from ai_lounge_mcp.main import server, list_tools, call_tool
-from ai_lounge_mcp.github_api import GitHubDiscussionsAPI
+from github_discuss_mcp.main import server, list_tools, call_tool
+from github_discuss_mcp.github_api import GitHubDiscussionsAPI
 
 
 class TestListTools:
-    """Test list_tools function."""
+    """list_tools 関数のテスト。"""
 
     @pytest.mark.asyncio
     async def test_list_tools_returns_two_tools(self):
-        """Test that list_tools returns exactly 2 tools."""
+        """list_tools が正確に 2 つのツールを返すテスト。"""
         tools = await list_tools()
         assert len(tools) == 2
 
     @pytest.mark.asyncio
-    async def test_post_to_ai_lounge_tool_exists(self):
-        """Test post_to_ai_lounge tool is defined."""
+    async def test_post_to_github_discuss_tool_exists(self):
+        """post_to_github_discuss ツールが定義されているテスト。"""
         tools = await list_tools()
         tool_names = [t.name for t in tools]
-        assert "post_to_ai_lounge" in tool_names
+        assert "post_to_github_discuss" in tool_names
 
     @pytest.mark.asyncio
-    async def test_get_lounge_categories_tool_exists(self):
-        """Test get_lounge_categories tool is defined."""
+    async def test_get_discuss_categories_tool_exists(self):
+        """get_discuss_categories ツールが定義されているテスト。"""
         tools = await list_tools()
         tool_names = [t.name for t in tools]
-        assert "get_lounge_categories" in tool_names
+        assert "get_discuss_categories" in tool_names
 
     @pytest.mark.asyncio
     async def test_post_tool_schema(self):
-        """Test post_to_ai_lounge tool has correct schema."""
+        """post_to_github_discuss ツールのスキーマテスト。"""
         tools = await list_tools()
-        post_tool = next(t for t in tools if t.name == "post_to_ai_lounge")
+        post_tool = next(t for t in tools if t.name == "post_to_github_discuss")
         schema = post_tool.inputSchema
 
         assert "title" in schema["properties"]
@@ -52,18 +52,20 @@ class TestListTools:
         ]
 
     @pytest.mark.asyncio
-    async def test_get_lounge_categories_tool_schema(self):
-        """Test get_lounge_categories tool has empty schema."""
+    async def test_get_discuss_categories_tool_schema(self):
+        """get_discuss_categories ツールのスキーマテスト。"""
         tools = await list_tools()
-        cat_tool = next(t for t in tools if t.name == "get_lounge_categories")
-        assert cat_tool.inputSchema["properties"] == {}
+        cat_tool = next(t for t in tools if t.name == "get_discuss_categories")
+        # owner と repo プロパティを持つ
+        assert "owner" in cat_tool.inputSchema["properties"]
+        assert "repo" in cat_tool.inputSchema["properties"]
 
 
 class TestCallTool:
-    """Test call_tool function."""
+    """call_tool 関数のテスト。"""
 
     def _setup_request_context(self, api):
-        """Set up a mock request context with the given API."""
+        """指定された API でモックリクエストコンテキストをセットアップする。"""
         from mcp.server.lowlevel.server import request_ctx
         from unittest.mock import MagicMock
 
@@ -73,13 +75,13 @@ class TestCallTool:
         return token
 
     def _cleanup_request_context(self, token):
-        """Clean up the request context."""
+        """リクエストコンテキストをクリーンアップする。"""
         from mcp.server.lowlevel.server import request_ctx
         request_ctx.reset(token)
 
     @pytest.mark.asyncio
     async def test_call_tool_unknown_tool(self, mock_token):
-        """Test unknown tool raises ValueError."""
+        """不明なツールが ValueError を発生させるテスト。"""
         api = GitHubDiscussionsAPI(token=mock_token)
         token = self._setup_request_context(api)
         try:
@@ -91,10 +93,10 @@ class TestCallTool:
     @pytest.mark.asyncio
     @respx.mock
     async def test_call_tool_post_success(self, mock_token, monkeypatch):
-        """Test successful post via call_tool."""
+        """call_tool 経由での投稿成功テスト。"""
         monkeypatch.setenv("GITHUB_TOKEN", mock_token)
-        monkeypatch.setenv("AI_LOUNGE_REPO_ID", "R_test_repo")
-        monkeypatch.setenv("AI_LOUNGE_CATEGORY_GENERAL", "DIC_general")
+        monkeypatch.setenv("GITHUB_DISCUSS_REPO_ID", "R_test_repo")
+        monkeypatch.setenv("GITHUB_DISCUSS_CATEGORY_GENERAL", "DIC_general")
 
         mock_response = {
             "data": {
@@ -114,7 +116,7 @@ class TestCallTool:
         api = GitHubDiscussionsAPI(token=mock_token)
         token = self._setup_request_context(api)
         try:
-            result = await call_tool("post_to_ai_lounge", {
+            result = await call_tool("post_to_github_discuss", {
                 "title": "Test Title",
                 "body": "I am an AI assistant.",
                 "category": "general",
@@ -128,13 +130,13 @@ class TestCallTool:
     @pytest.mark.asyncio
     @respx.mock
     async def test_call_tool_post_category_not_found(self, mock_token, monkeypatch):
-        """Test post fails with invalid category."""
+        """無効なカテゴリでの投稿失敗テスト。"""
         monkeypatch.setenv("GITHUB_TOKEN", mock_token)
-        monkeypatch.setenv("AI_LOUNGE_REPO_ID", "R_test_repo")
-        monkeypatch.delenv("AI_LOUNGE_CATEGORY_GENERAL", raising=False)
-        monkeypatch.delenv("AI_LOUNGE_CATEGORY_IDEAS", raising=False)
-        monkeypatch.delenv("AI_LOUNGE_CATEGORY_QA", raising=False)
-        monkeypatch.delenv("AI_LOUNGE_CATEGORY_SHOW", raising=False)
+        monkeypatch.setenv("GITHUB_DISCUSS_REPO_ID", "R_test_repo")
+        monkeypatch.delenv("GITHUB_DISCUSS_CATEGORY_GENERAL", raising=False)
+        monkeypatch.delenv("GITHUB_DISCUSS_CATEGORY_IDEAS", raising=False)
+        monkeypatch.delenv("GITHUB_DISCUSS_CATEGORY_QA", raising=False)
+        monkeypatch.delenv("GITHUB_DISCUSS_CATEGORY_SHOW", raising=False)
 
         mock_categories = {
             "data": {
@@ -150,7 +152,7 @@ class TestCallTool:
         api = GitHubDiscussionsAPI(token=mock_token)
         token = self._setup_request_context(api)
         try:
-            result = await call_tool("post_to_ai_lounge", {
+            result = await call_tool("post_to_github_discuss", {
                 "title": "Test Title",
                 "body": "I am an AI.",
                 "category": "nonexistent",
@@ -159,15 +161,15 @@ class TestCallTool:
             self._cleanup_request_context(token)
 
         assert len(result) == 1
-        assert "❌ エラー: カテゴリ 'nonexistent' が見つかりません" in result[0].text
+        assert "❌ エラー：カテゴリ 'nonexistent' が見つかりません" in result[0].text
 
     @pytest.mark.asyncio
     @respx.mock
     async def test_call_tool_post_api_failure(self, mock_token, monkeypatch):
-        """Test post fails due to API error."""
+        """API エラーによる投稿失敗テスト。"""
         monkeypatch.setenv("GITHUB_TOKEN", mock_token)
-        monkeypatch.setenv("AI_LOUNGE_REPO_ID", "R_test_repo")
-        monkeypatch.setenv("AI_LOUNGE_CATEGORY_GENERAL", "DIC_general")
+        monkeypatch.setenv("GITHUB_DISCUSS_REPO_ID", "R_test_repo")
+        monkeypatch.setenv("GITHUB_DISCUSS_CATEGORY_GENERAL", "DIC_general")
 
         respx.post("https://api.github.com/graphql").mock(
             return_value=Response(500, json={"message": "Internal Server Error"})
@@ -176,7 +178,7 @@ class TestCallTool:
         api = GitHubDiscussionsAPI(token=mock_token)
         token = self._setup_request_context(api)
         try:
-            result = await call_tool("post_to_ai_lounge", {
+            result = await call_tool("post_to_github_discuss", {
                 "title": "Test Title",
                 "body": "I am an AI assistant.",
                 "category": "general",
@@ -190,7 +192,7 @@ class TestCallTool:
     @pytest.mark.asyncio
     @respx.mock
     async def test_call_tool_get_categories_success(self, mock_token, monkeypatch):
-        """Test get_lounge_categories returns categories."""
+        """get_discuss_categories がカテゴリを返すテスト。"""
         monkeypatch.setenv("GITHUB_TOKEN", mock_token)
 
         mock_categories = {
@@ -216,7 +218,7 @@ class TestCallTool:
         api = GitHubDiscussionsAPI(token=mock_token)
         token = self._setup_request_context(api)
         try:
-            result = await call_tool("get_lounge_categories", {})
+            result = await call_tool("get_discuss_categories", {})
         finally:
             self._cleanup_request_context(token)
 
@@ -227,10 +229,11 @@ class TestCallTool:
     @pytest.mark.asyncio
     @respx.mock
     async def test_call_tool_post_missing_repo_id_fallback_api(self, mock_token, monkeypatch):
-        """Test post falls back to API when AI_LOUNGE_REPO_ID is not set."""
+        """GITHUB_DISCUSS_REPO_ID が設定されていない場合 API fallback のテスト。"""
         monkeypatch.setenv("GITHUB_TOKEN", mock_token)
+        monkeypatch.delenv("GITHUB_DISCUSS_REPO_ID", raising=False)
         monkeypatch.delenv("AI_LOUNGE_REPO_ID", raising=False)
-        monkeypatch.setenv("AI_LOUNGE_CATEGORY_GENERAL", "DIC_general")
+        monkeypatch.setenv("GITHUB_DISCUSS_CATEGORY_GENERAL", "DIC_general")
 
         call_count = 0
 
@@ -238,10 +241,12 @@ class TestCallTool:
             nonlocal call_count
             call_count += 1
             if call_count == 1:
+                # リポジトリ ID 取得
                 return Response(200, json={
                     "data": {"repository": {"id": "R_test_repo"}}
                 })
             else:
+                # ディスカッション作成
                 return Response(200, json={
                     "data": {
                         "createDiscussion": {
@@ -259,7 +264,7 @@ class TestCallTool:
         api = GitHubDiscussionsAPI(token=mock_token)
         token = self._setup_request_context(api)
         try:
-            result = await call_tool("post_to_ai_lounge", {
+            result = await call_tool("post_to_github_discuss", {
                 "title": "Test Title",
                 "body": "I am an AI.",
                 "category": "general",

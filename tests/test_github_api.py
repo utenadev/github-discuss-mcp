@@ -1,56 +1,33 @@
-"""Tests for GitHub Discussions API wrapper."""
+"""GitHub Discussions API ラッパーのテスト。"""
 
 import pytest
 import respx
 from httpx import Response
 
-from ai_lounge_mcp.github_api import (
+from github_discuss_mcp.github_api import (
     GitHubDiscussionsAPI,
     DiscussionInput,
     DiscussionResult,
 )
 
 
-@pytest.fixture
-def mock_token():
-    """Mock GitHub token for testing."""
-    return "ghp_test_token_12345"
-
-
-@pytest.fixture
-def api(mock_token):
-    """Create API instance with mock token."""
-    return GitHubDiscussionsAPI(token=mock_token)
-
-
-@pytest.fixture
-def discussion_input():
-    """Create sample discussion input."""
-    return DiscussionInput(
-        repository_id="R_test_repo",
-        category_id="DIC_test_category",
-        title="Test Discussion",
-        body="This is a test discussion body.",
-    )
-
-
 class TestGitHubDiscussionsAPI:
-    """Test GitHubDiscussionsAPI class."""
+    """GitHubDiscussionsAPI クラスのテスト。"""
 
     def test_init_with_token(self, mock_token):
-        """Test initialization with explicit token."""
+        """明示的なトークンでの初期化テスト。"""
         api = GitHubDiscussionsAPI(token=mock_token)
         assert api.token == mock_token
         assert api.headers["Authorization"] == f"Bearer {mock_token}"
 
     def test_init_without_token_raises_error(self, monkeypatch):
-        """Test initialization fails without token."""
+        """トークンなしで初期化した場合エラーになるテスト。"""
         monkeypatch.delenv("GITHUB_TOKEN", raising=False)
-        with pytest.raises(ValueError, match="GITHUB_TOKEN環境変数が必要です"):
+        with pytest.raises(ValueError, match="GITHUB_TOKEN 環境変数が必要です"):
             GitHubDiscussionsAPI()
 
     def test_init_with_env_variable(self, mock_token, monkeypatch):
-        """Test initialization with environment variable."""
+        """環境変数での初期化テスト。"""
         monkeypatch.setenv("GITHUB_TOKEN", mock_token)
         api = GitHubDiscussionsAPI()
         assert api.token == mock_token
@@ -58,7 +35,7 @@ class TestGitHubDiscussionsAPI:
     @pytest.mark.asyncio
     @respx.mock
     async def test_create_discussion_success(self, api, discussion_input):
-        """Test successful discussion creation."""
+        """ディスカッション作成成功のテスト。"""
         mock_response = {
             "data": {
                 "createDiscussion": {
@@ -86,7 +63,7 @@ class TestGitHubDiscussionsAPI:
     @pytest.mark.asyncio
     @respx.mock
     async def test_create_discussion_with_client_mutation_id(self, api):
-        """Test discussion creation with client mutation ID."""
+        """client_mutation_id 付きディスカッション作成テスト。"""
         discussion_input = DiscussionInput(
             repository_id="R_test_repo",
             category_id="DIC_test_category",
@@ -119,7 +96,7 @@ class TestGitHubDiscussionsAPI:
     @pytest.mark.asyncio
     @respx.mock
     async def test_create_discussion_api_error(self, api, discussion_input):
-        """Test handling of API errors."""
+        """API エラー処理のテスト。"""
         mock_response = {
             "errors": [{"message": "Something went wrong"}]
         }
@@ -136,7 +113,7 @@ class TestGitHubDiscussionsAPI:
     @pytest.mark.asyncio
     @respx.mock
     async def test_create_discussion_http_error(self, api, discussion_input):
-        """Test handling of HTTP errors."""
+        """HTTP エラー処理のテスト。"""
         respx.post("https://api.github.com/graphql").mock(
             return_value=Response(500, json={"message": "Internal Server Error"})
         )
@@ -144,12 +121,12 @@ class TestGitHubDiscussionsAPI:
         result = await api.create_discussion(discussion_input)
 
         assert result.success is False
-        assert "HTTPエラー" in result.error
+        assert "HTTP エラー" in result.error
 
     @pytest.mark.asyncio
     @respx.mock
     async def test_get_repository_id_success(self, api):
-        """Test successful repository ID retrieval."""
+        """リポジトリ ID 取得成功のテスト。"""
         mock_response = {
             "data": {
                 "repository": {
@@ -169,7 +146,7 @@ class TestGitHubDiscussionsAPI:
     @pytest.mark.asyncio
     @respx.mock
     async def test_get_repository_id_not_found(self, api):
-        """Test repository ID retrieval when not found."""
+        """リポジトリ ID が存在しない場合のテスト。"""
         mock_response = {
             "data": {
                 "repository": None
@@ -187,7 +164,7 @@ class TestGitHubDiscussionsAPI:
     @pytest.mark.asyncio
     @respx.mock
     async def test_get_repository_id_http_error(self, api):
-        """Test repository ID retrieval on HTTP error."""
+        """HTTP エラー発生時のリポジトリ ID 取得テスト。"""
         respx.post("https://api.github.com/graphql").mock(
             return_value=Response(500)
         )
@@ -199,7 +176,7 @@ class TestGitHubDiscussionsAPI:
     @pytest.mark.asyncio
     @respx.mock
     async def test_get_categories_success(self, api):
-        """Test successful category retrieval."""
+        """カテゴリ取得成功のテスト。"""
         mock_response = {
             "data": {
                 "repository": {
@@ -236,7 +213,7 @@ class TestGitHubDiscussionsAPI:
     @pytest.mark.asyncio
     @respx.mock
     async def test_get_categories_empty(self, api):
-        """Test category retrieval with no categories."""
+        """カテゴリ空リスト取得のテスト。"""
         mock_response = {
             "data": {
                 "repository": {
@@ -258,7 +235,7 @@ class TestGitHubDiscussionsAPI:
     @pytest.mark.asyncio
     @respx.mock
     async def test_get_categories_http_error(self, api):
-        """Test category retrieval on HTTP error."""
+        """HTTP エラー発生時のカテゴリ取得テスト。"""
         respx.post("https://api.github.com/graphql").mock(
             return_value=Response(500)
         )
@@ -270,7 +247,7 @@ class TestGitHubDiscussionsAPI:
     @pytest.mark.asyncio
     @respx.mock
     async def test_get_categories_null_nodes(self, api):
-        """Test category retrieval when nodes is null."""
+        """nodes が null の場合のカテゴリ取得テスト。"""
         mock_response = {
             "data": {
                 "repository": {
@@ -291,10 +268,10 @@ class TestGitHubDiscussionsAPI:
 
 
 class TestDiscussionInput:
-    """Test DiscussionInput model."""
+    """DiscussionInput モデルのテスト。"""
 
     def test_create_discussion_input(self):
-        """Test creating DiscussionInput."""
+        """DiscussionInput 生成テスト。"""
         input_data = DiscussionInput(
             repository_id="R_test",
             category_id="DIC_test",
@@ -308,7 +285,7 @@ class TestDiscussionInput:
         assert input_data.client_mutation_id is None
 
     def test_create_discussion_input_with_mutation_id(self):
-        """Test creating DiscussionInput with client mutation ID."""
+        """client_mutation_id 付き DiscussionInput 生成テスト。"""
         input_data = DiscussionInput(
             repository_id="R_test",
             category_id="DIC_test",
@@ -320,10 +297,10 @@ class TestDiscussionInput:
 
 
 class TestDiscussionResult:
-    """Test DiscussionResult model."""
+    """DiscussionResult モデルのテスト。"""
 
     def test_create_success_result(self):
-        """Test creating successful DiscussionResult."""
+        """成功 DiscussionResult 生成テスト。"""
         result = DiscussionResult(
             success=True,
             discussion_url="https://github.com/test/repo/discussions/1",
@@ -335,7 +312,7 @@ class TestDiscussionResult:
         assert result.error is None
 
     def test_create_error_result(self):
-        """Test creating error DiscussionResult."""
+        """エラー DiscussionResult 生成テスト。"""
         result = DiscussionResult(
             success=False,
             error="Test error message",
