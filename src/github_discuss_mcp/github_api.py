@@ -249,3 +249,177 @@ class GitHubDiscussionsAPI:
             except httpx.HTTPError:
                 return []
         return []
+
+    async def get_discussions(
+        self, owner: str, repo: str, category_id: Optional[str] = None
+    ) -> list[dict]:
+        """リポジトリのディスカッション一覧を取得する。
+
+        指定されたリポジトリの最新のディスカッションを取得します。
+        カテゴリ ID を指定することでフィルタリングも可能です。
+
+        Args:
+            owner: GitHub オーナー名
+            repo: リポジトリ名
+            category_id: カテゴリ ID（オプション）
+
+        Returns:
+            ディスカッション情報のリスト。
+        """
+        query = """
+        query GetDiscussions($owner: String!, $name: String!, $categoryId: ID) {
+            repository(owner: $owner, name: $name) {
+                discussions(first: 10, categoryId: $categoryId, orderBy: {field: CREATED_AT, direction: DESC}) {
+                    nodes {
+                        id
+                        number
+                        title
+                        body
+                        url
+                        createdAt
+                        author {
+                            login
+                        }
+                        category {
+                            name
+                        }
+                    }
+                }
+            }
+        }
+        """
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            try:
+                variables = {"owner": owner, "name": repo, "categoryId": category_id}
+                response = await client.post(
+                    GITHUB_API_URL,
+                    headers=self.headers,
+                    json={"query": query, "variables": variables},
+                )
+                response.raise_for_status()
+                data = response.json()
+                if "data" in data and data["data"]["repository"]:
+                    discussions = data["data"]["repository"]["discussions"]["nodes"] or []
+                    # number を追加（URL からの検索用）
+                    for d in discussions:
+                        d["number"] = d.get("number")
+                    return discussions
+            except httpx.HTTPError:
+                return []
+        return []
+
+    async def get_discussion_by_number(
+        self, owner: str, repo: str, number: int
+    ) -> Optional[dict]:
+        """ディスカッションを番号で取得する。
+
+        Args:
+            owner: GitHub オーナー名
+            repo: リポジトリ名
+            number: ディスカッション番号
+
+        Returns:
+            ディスカッション情報。見つからない場合は None。
+        """
+        query = """
+        query GetDiscussion($owner: String!, $name: String!, $number: Int!) {
+            repository(owner: $owner, name: $name) {
+                discussion(number: $number) {
+                    id
+                    number
+                    title
+                    body
+                    url
+                    createdAt
+                    author {
+                        login
+                    }
+                    category {
+                        name
+                    }
+                }
+            }
+        }
+        """
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            try:
+                variables = {"owner": owner, "name": repo, "number": number}
+                response = await client.post(
+                    GITHUB_API_URL,
+                    headers=self.headers,
+                    json={"query": query, "variables": variables},
+                )
+                response.raise_for_status()
+                data = response.json()
+                if "data" in data and data["data"]["repository"]:
+                    return data["data"]["repository"]["discussion"]
+            except httpx.HTTPError:
+                return None
+        return None
+
+    async def add_comment(self, discussion_id: str, body: str) -> dict:
+        """ディスカッションにコメント（返信）を追加する。
+
+        既存のディスカッションにコメントを追加します。
+
+        Args:
+            discussion_id: ディスカッション ID（node ID）
+            body: コメント本文（Markdown 形式）
+
+        Returns:
+            結果を含む辞書。成功時は 'success': True、
+            失敗時は 'success': False と 'error' を含む。
+        """
+        # Discussion へのコメントには addDiscussionComment を使用
+        mutation = """
+        mutation AddDiscussionComment($input: AddDiscussionCommentInput!) {
+            addDiscussionComment(input: $input) {
+                comment {
+                    id
+                    body
+                    createdAt
+                }
+            }
+        }
+        """
+
+        variables = {
+            "input": {
+                "discussionId": discussion_id,
+                "body": body,
+            }
+        }
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            try:
+                response = await client.post(
+                    GITHUB_API_URL,
+                    headers=self.headers,
+                    json={"query": mutation, "variables": variables},
+                )
+                response.raise_for_status()
+                data = response.json()
+
+                if "errors" in data:
+                    return {"success": False, "error": str(data["errors"])}
+
+                comment = data["data"]["addDiscussionComment"]["comment"]
+                return {
+                    "success": True,
+                    "comment_id": comment["id"],
+                    "body": comment["body"],
+                    "created_at": comment["createdAt"],
+                }
+
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 401:
+                    error_msg = "認証エラー：GitHub トークンが無効または期限切れです"
+                elif e.response.status_code == 403:
+                    error_msg = "権限エラー：トークンに 'repo' と 'write:discussion' 権限が必要です"
+                else:
+                    error_msg = f"HTTP エラー (ステータスコード：{e.response.status_code}): {e.response.text}"
+                return {"success": False, "error": error_msg}
+            except httpx.RequestError as e:
+                return {"success": False, "error": f"リクエストエラー：{str(e)}"}
+            except httpx.HTTPError as e:
+                return {"success": False, "error": f"HTTP エラー：{str(e)}"}

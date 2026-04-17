@@ -142,6 +142,125 @@ def list_categories(
     asyncio.run(_list())
 
 
+@app.command("list")
+def list_discussions(
+    category: str = typer.Option(
+        None,
+        "--category",
+        "-c",
+        help="カテゴリ名でフィルタリング（例：general）"
+    ),
+    owner: str = typer.Option(
+        None,
+        "--owner",
+        "-o",
+        help=f"GitHub オーナー名（デフォルト：{DEFAULT_OWNER}）"
+    ),
+    repo: str = typer.Option(
+        None,
+        "--repo",
+        "-r",
+        help=f"GitHub リポジトリ名（デフォルト：{DEFAULT_REPO}）"
+    ),
+):
+    """最新のディスカッション一覧を表示します。"""
+    repo_owner = owner or os.getenv("GITHUB_DISCUSS_OWNER", DEFAULT_OWNER)
+    repo_name = repo or os.getenv("GITHUB_DISCUSS_REPO", DEFAULT_REPO)
+
+    async def _list():
+        api = GitHubDiscussionsAPI()
+
+        # カテゴリ ID の解決（オプション）
+        category_id = None
+        if category:
+            category_id = await resolve_category_id(
+                api,
+                category,
+                repo_owner=repo_owner,
+                repo_name=repo_name,
+            )
+
+        discussions = await api.get_discussions(
+            repo_owner, repo_name, category_id=category_id
+        )
+
+        if not discussions:
+            typer.echo("📭 ディスカッションが見つかりませんでした。")
+            return
+
+        typer.echo("📖 最新のディスカッション:\n")
+        for d in discussions:
+            author = d.get("author", {}).get("login", "不明")
+            typer.echo(f"### {d['title']}")
+            typer.echo(f"- **作者**: {author}")
+            typer.echo(f"- **カテゴリ**: {d['category']['name']}")
+            typer.echo(f"- **URL**: {d['url']}")
+            typer.echo(f"- **作成日**: {d['createdAt']}")
+            # 本文の冒頭を表示
+            body = d.get("body", "")
+            snippet = body[:200] + "..." if len(body) > 200 else body
+            typer.echo(f"\n{snippet}\n")
+            typer.echo("---\n")
+
+    asyncio.run(_list())
+
+
+@app.command("reply")
+def reply(
+    discussion_url: str = typer.Argument(..., help="返信するディスカッションの URL"),
+    body: str = typer.Argument(..., help="コメント内容（Markdown 形式）"),
+    owner: str = typer.Option(
+        None,
+        "--owner",
+        "-o",
+        help=f"GitHub オーナー名（デフォルト：{DEFAULT_OWNER}）"
+    ),
+    repo: str = typer.Option(
+        None,
+        "--repo",
+        "-r",
+        help=f"GitHub リポジトリ名（デフォルト：{DEFAULT_REPO}）"
+    ),
+):
+    """既存のディスカッションにコメント（返信）を追加します。"""
+    repo_owner = owner or os.getenv("GITHUB_DISCUSS_OWNER", DEFAULT_OWNER)
+    repo_name = repo or os.getenv("GITHUB_DISCUSS_REPO", DEFAULT_REPO)
+
+    async def _reply():
+        api = GitHubDiscussionsAPI()
+
+        # URL からディスカッション番号を抽出
+        # 例：https://github.com/utenadev/github-discuss-mcp/discussions/15 -> 15
+        try:
+            discussion_number = int(discussion_url.rstrip("/").split("/")[-1])
+        except ValueError:
+            typer.echo(f"❌ エラー：無効なディスカッション URL です：{discussion_url}")
+            raise typer.Exit(1)
+
+        # ディスカッションを取得して ID を取得
+        discussion = await api.get_discussion_by_number(
+            repo_owner, repo_name, discussion_number
+        )
+
+        if not discussion:
+            typer.echo(f"❌ エラー：ディスカッション '#{discussion_number}' が見つかりませんでした。")
+            raise typer.Exit(1)
+
+        # ID を取得（そのまま使用）
+        discussion_id = discussion["id"]
+
+        # コメントを追加
+        result = await api.add_comment(discussion_id, body)
+
+        if result.get("success"):
+            typer.echo(f"✅ コメントを追加しました！\n{discussion_url}")
+        else:
+            typer.echo(f"❌ コメントの追加に失敗しました：{result.get('error')}")
+            raise typer.Exit(1)
+
+    asyncio.run(_reply())
+
+
 @app.command("setup")
 def setup_guide():
     """セットアップ手順を表示します。"""

@@ -4,9 +4,12 @@ GitHub Discussions に投稿する機能を提供します。
 """
 
 import os
+import sys
 from contextlib import asynccontextmanager
-from mcp.server import Server
+from dotenv import load_dotenv
+from mcp.server import Server, NotificationOptions
 from mcp.server.stdio import stdio_server
+from mcp.server.models import InitializationOptions
 from mcp.types import Tool, TextContent
 
 from .github_api import GitHubDiscussionsAPI, DiscussionInput
@@ -59,6 +62,7 @@ async def list_tools():
     以下のツールを提供します：
     - post_to_github_discuss: GitHub Discussions への投稿
     - get_discuss_categories: カテゴリ一覧の取得
+    - get_discussions: ディスカッション一覧の取得
 
     Returns:
         Tool オブジェクトのリスト
@@ -111,6 +115,46 @@ async def list_tools():
                     }
                 },
                 "required": []
+            }
+        ),
+        Tool(
+            name="get_discussions",
+            description="GitHub Discussions の最新の投稿一覧を取得します。",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "category": {
+                        "type": "string",
+                        "description": "カテゴリ名でフィルタリング（例：'general'）"
+                    },
+                    "owner": {
+                        "type": "string",
+                        "description": f"GitHub オーナー名（デフォルト：{DEFAULT_OWNER}）"
+                    },
+                    "repo": {
+                        "type": "string",
+                        "description": f"GitHub リポジトリ名（デフォルト：{DEFAULT_REPO}）"
+                    }
+                },
+                "required": []
+            }
+        ),
+        Tool(
+            name="reply_to_discussion",
+            description="既存の GitHub Discussions にコメント（返信）を追加します。",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "discussion_url": {
+                        "type": "string",
+                        "description": "返信するディスカッションの URL"
+                    },
+                    "body": {
+                        "type": "string",
+                        "description": "コメント内容（Markdown 形式）"
+                    }
+                },
+                "required": ["discussion_url", "body"]
             }
         )
     ]
@@ -203,6 +247,90 @@ async def call_tool(name: str, arguments: dict):
             text=f"📋 利用可能なカテゴリ一覧:\n{category_list}"
         )]
 
+    elif name == "get_discussions":
+        # カテゴリ ID の解決（オプション）
+        category_name = arguments.get("category")
+        category_id = None
+        if category_name:
+            category_id = await resolve_category_id(
+                api,
+                category_name,
+                repo_owner=repo_owner,
+                repo_name=repo_name,
+            )
+
+        # ディスカッション一覧の取得
+        discussions = await api.get_discussions(
+            repo_owner, repo_name, category_id=category_id
+        )
+
+        if not discussions:
+            return [TextContent(
+                type="text",
+                text="📭 ディスカッションが見つかりませんでした。"
+            )]
+
+        result_text = "📖 最新のディスカッション:\n\n"
+        for d in discussions:
+            author = d.get("author", {}).get("login", "不明")
+            result_text += f"### {d['title']}\n"
+            result_text += f"- **作者**: {author}\n"
+            result_text += f"- **カテゴリ**: {d['category']['name']}\n"
+            result_text += f"- **URL**: {d['url']}\n"
+            result_text += f"- **作成日**: {d['createdAt']}\n\n"
+            # 本文の冒頭を表示
+            body = d.get("body", "")
+            snippet = body[:200] + "..." if len(body) > 200 else body
+            result_text += f"{snippet}\n\n---\n\n"
+
+        return [TextContent(
+            type="text",
+            text=result_text
+        )]
+
+    elif name == "reply_to_discussion":
+        # URL からディスカッション ID を取得する必要がある
+        # 簡易的に URL をそのまま使用（GitHub API は discussion ID を必要とする）
+        discussion_url = arguments.get("discussion_url")
+        body = arguments.get("body")
+
+        if not discussion_url or not body:
+            return [TextContent(
+                type="text",
+                text="❌ エラー：discussion_url と body が必要です。"
+            )]
+
+        # URL からディスカッション ID を取得するために、まずディスカッション一覧を取得
+        # して URL が一致するものを探す（簡易実装）
+        discussions = await api.get_discussions(repo_owner, repo_name)
+
+        discussion_id = None
+        for d in discussions:
+            if d["url"] == discussion_url:
+                discussion_id = d["id"]
+                break
+
+        if not discussion_id:
+            # 見つからない場合、エラーを返す
+            return [TextContent(
+                type="text",
+                text=f"❌ エラー：ディスカッション '{discussion_url}' が見つかりませんでした。"
+            )]
+
+        # コメントを追加
+        result = await api.add_comment(discussion_id, body)
+
+        if result.get("success"):
+            return [TextContent(
+                type="text",
+                text=f"✅ コメントを追加しました！\n{discussion_url}"
+            )]
+        else:
+            return [TextContent(
+                type="text",
+                text=f"❌ コメントの追加に失敗しました：{result.get('error')}"
+            )]
+
     else:
         raise ValueError(f"不明なツール：{name}")
 
@@ -217,10 +345,34 @@ def run():
     標準入力・標準出力を使用して MCP プロトコルで通信します。
     """
     import asyncio
+    from pathlib import Path
+
+    # スクリプトの場所からプロジェクトルートにある .env を探す
+    base_path = Path(__file__).parent.parent.parent
+    env_path = base_path / ".env"
+    
+    # .env ファイルを読み込む
+    load_dotenv(dotenv_path=env_path)
+
+    # トークンの確認（デバッグ用に stderr に出力）
+    if not os.getenv("GITHUB_TOKEN"):
+        print("❌ エラー：GITHUB_TOKEN が環境変数に設定されていません。", file=sys.stderr)
+        # 終了せずに続行すると、ツール実行時にエラーになる
 
     async def main():
         async with stdio_server() as (read_stream, write_stream):
-            await server.run(read_stream, write_stream)
+            await server.run(
+                read_stream,
+                write_stream,
+                InitializationOptions(
+                    server_name="github-discuss-mcp",
+                    server_version="0.1.0",
+                    capabilities=server.get_capabilities(
+                        notification_options=NotificationOptions(),
+                        experimental_capabilities={},
+                    ),
+                ),
+            )
 
     asyncio.run(main())
 

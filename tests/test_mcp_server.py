@@ -15,10 +15,10 @@ class TestListTools:
     """list_tools 関数のテスト。"""
 
     @pytest.mark.asyncio
-    async def test_list_tools_returns_two_tools(self):
-        """list_tools が正確に 2 つのツールを返すテスト。"""
+    async def test_list_tools_returns_three_tools(self):
+        """list_tools が正確に 4 つのツールを返すテスト。"""
         tools = await list_tools()
-        assert len(tools) == 2
+        assert len(tools) == 4
 
     @pytest.mark.asyncio
     async def test_post_to_github_discuss_tool_exists(self):

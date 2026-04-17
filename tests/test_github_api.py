@@ -321,3 +321,124 @@ class TestDiscussionResult:
         assert result.error == "Test error message"
         assert result.discussion_url is None
         assert result.discussion_id is None
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_get_discussions_success(self, api):
+        """ディスカッション一覧取得成功のテスト。"""
+        mock_response = {
+            "data": {
+                "repository": {
+                    "discussions": {
+                        "nodes": [
+                            {
+                                "id": "D_test_1",
+                                "title": "Test Discussion 1",
+                                "body": "Test body 1",
+                                "url": "https://github.com/test/repo/discussions/1",
+                                "createdAt": "2024-01-01T00:00:00Z",
+                                "author": {"login": "user1"},
+                                "category": {"name": "general"},
+                            },
+                            {
+                                "id": "D_test_2",
+                                "title": "Test Discussion 2",
+                                "body": "Test body 2",
+                                "url": "https://github.com/test/repo/discussions/2",
+                                "createdAt": "2024-01-02T00:00:00Z",
+                                "author": {"login": "user2"},
+                                "category": {"name": "ideas"},
+                            },
+                        ]
+                    }
+                }
+            }
+        }
+
+        respx.post("https://api.github.com/graphql").mock(
+            return_value=Response(200, json=mock_response)
+        )
+
+        discussions = await api.get_discussions("test-owner", "test-repo")
+
+        assert len(discussions) == 2
+        assert discussions[0]["title"] == "Test Discussion 1"
+        assert discussions[1]["title"] == "Test Discussion 2"
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_get_discussions_empty(self, api):
+        """ディスカッション一覧取得で結果が空のテスト。"""
+        mock_response = {
+            "data": {
+                "repository": {
+                    "discussions": {
+                        "nodes": []
+                    }
+                }
+            }
+        }
+
+        respx.post("https://api.github.com/graphql").mock(
+            return_value=Response(200, json=mock_response)
+        )
+
+        discussions = await api.get_discussions("test-owner", "test-repo")
+
+        assert discussions == []
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_add_comment_success(self, api):
+        """コメント追加成功のテスト。"""
+        mock_response = {
+            "data": {
+                "addDiscussionComment": {
+                    "comment": {
+                        "id": "C_test_comment",
+                        "body": "Test comment body",
+                        "createdAt": "2024-01-01T00:00:00Z",
+                    }
+                }
+            }
+        }
+
+        respx.post("https://api.github.com/graphql").mock(
+            return_value=Response(200, json=mock_response)
+        )
+
+        result = await api.add_comment("D_test_discussion", "Test comment body")
+
+        assert result["success"] is True
+        assert result["comment_id"] == "C_test_comment"
+        assert result["body"] == "Test comment body"
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_add_comment_api_error(self, api):
+        """コメント追加で API エラーのテスト。"""
+        mock_response = {
+            "errors": [{"message": "Something went wrong"}]
+        }
+
+        respx.post("https://api.github.com/graphql").mock(
+            return_value=Response(200, json=mock_response)
+        )
+
+        result = await api.add_comment("D_test_discussion", "Test comment")
+
+        assert result["success"] is False
+        assert "Something went wrong" in result["error"]
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_add_comment_http_error(self, api):
+        """コメント追加で HTTP エラーのテスト。"""
+        respx.post("https://api.github.com/graphql").mock(
+            return_value=Response(500, json={"message": "Internal Server Error"})
+        )
+
+        result = await api.add_comment("D_test_discussion", "Test comment")
+
+        assert result["success"] is False
+        assert "HTTP エラー" in result["error"]
