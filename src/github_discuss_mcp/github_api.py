@@ -382,6 +382,76 @@ class GitHubDiscussionsAPI:
                 return None
         return None
 
+    async def get_discussion_by_number(self, owner: str, repo: str, number: int) -> Optional[dict]:
+        """ディスカッション番号からディスカッション情報を取得する。
+
+        指定されたリポジトリのディスカッション番号から、
+        ディスカッションの詳細情報を取得します。
+
+        Args:
+            owner: GitHub オーナー名
+            repo: リポジトリ名
+            number: ディスカッション番号
+
+        Returns:
+            ディスカッション情報の辞書。
+            取得失敗時は None。
+        """
+        query = """
+        query GetDiscussionByNumber($owner: String!, $name: String!, $number: Int!) {
+            repository(owner: $owner, name: $name) {
+                discussion(number: $number) {
+                    id
+                    title
+                    body
+                    url
+                    createdAt
+                    author {
+                        login
+                    }
+                    category {
+                        name
+                    }
+                    comments(first: 50) {
+                        nodes {
+                            id
+                            body
+                            createdAt
+                            author {
+                                login
+                            }
+                            replies(first: 50) {
+                                nodes {
+                                    id
+                                    body
+                                    createdAt
+                                    author {
+                                        login
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        """
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            try:
+                variables = {"owner": owner, "name": repo, "number": number}
+                response = await client.post(
+                    GITHUB_API_URL,
+                    headers=self.headers,
+                    json={"query": query, "variables": variables},
+                )
+                response.raise_for_status()
+                data = response.json()
+                if "data" in data and data["data"]["repository"]:
+                    return data["data"]["repository"]["discussion"]
+            except httpx.HTTPError:
+                return None
+        return None
+
     async def add_comment(self, discussion_id: str, body: str, reply_to_id: Optional[str] = None) -> dict:
         """ディスカッションにコメント（返信）を追加する。
 
@@ -430,7 +500,12 @@ class GitHubDiscussionsAPI:
                 if "errors" in data:
                     return {"success": False, "error": str(data["errors"])}
 
-                comment = data["data"]["addDiscussionComment"]["comment"]
+                # commentEdge または comment のどちらかをサポート
+                comment_data = data["data"]["addDiscussionComment"]
+                if "commentEdge" in comment_data:
+                    comment = comment_data["commentEdge"]["node"]
+                else:
+                    comment = comment_data["comment"]
                 return {
                     "success": True,
                     "comment_id": comment["id"],
@@ -446,6 +521,166 @@ class GitHubDiscussionsAPI:
                 else:
                     error_msg = f"HTTP エラー (ステータスコード：{e.response.status_code}): {e.response.text}"
                 return {"success": False, "error": error_msg}
+            except httpx.RequestError as e:
+                return {"success": False, "error": f"リクエストエラー：{str(e)}"}
+            except httpx.HTTPError as e:
+                return {"success": False, "error": f"HTTP エラー：{str(e)}"}
+
+    async def update_discussion(self, discussion_id: str, title: Optional[str] = None, body: Optional[str] = None) -> dict:
+        """ディスカッションを更新（編集）する。
+
+        既存のディスカッションのタイトルまたは本文を更新します。
+
+        Args:
+            discussion_id: ディスカッション ID（node ID）
+            title: 新しいタイトル（オプション）
+            body: 新しい本文（オプション）
+
+        Returns:
+            結果を含む辞書。成功時は 'success': True。
+        """
+        mutation = """
+        mutation UpdateDiscussion($input: UpdateDiscussionInput!) {
+            updateDiscussion(input: $input) {
+                discussion {
+                    id
+                    title
+                    body
+                    updatedAt
+                }
+            }
+        }
+        """
+
+        variables = {"input": {"id": discussion_id}}
+        if title:
+            variables["input"]["title"] = title
+        if body:
+            variables["input"]["body"] = body
+
+        return await self._execute_mutation(mutation, variables, "updateDiscussion")
+
+    async def delete_discussion(self, discussion_id: str) -> dict:
+        """ディスカッションを削除する。
+
+        Args:
+            discussion_id: ディスカッション ID（node ID）
+
+        Returns:
+            結果を含む辞書。成功時は 'success': True。
+        """
+        mutation = """
+        mutation DeleteDiscussion($input: DeleteDiscussionInput!) {
+            deleteDiscussion(input: $input) {
+                repository { id }
+            }
+        }
+        """
+
+        variables = {"input": {"id": discussion_id}}
+        return await self._execute_mutation(mutation, variables, "deleteDiscussion")
+
+    async def update_comment(self, comment_id: str, body: str) -> dict:
+        """コメントを更新（編集）する。
+
+        Args:
+            comment_id: コメント ID（node ID）
+            body: 新しい本文（Markdown 形式）
+
+        Returns:
+            結果を含む辞書。成功時は 'success': True。
+        """
+        mutation = """
+        mutation UpdateDiscussionComment($input: UpdateDiscussionCommentInput!) {
+            updateDiscussionComment(input: $input) {
+                comment {
+                    id
+                    body
+                    updatedAt
+                }
+            }
+        }
+        """
+
+        variables = {"input": {"id": comment_id, "body": body}}
+        return await self._execute_mutation(mutation, variables, "updateDiscussionComment")
+
+    async def delete_comment(self, comment_id: str) -> dict:
+        """コメントを削除する。
+
+        Args:
+            comment_id: コメント ID（node ID）
+
+        Returns:
+            結果を含む辞書。成功時は 'success': True。
+        """
+        mutation = """
+        mutation DeleteDiscussionComment($input: DeleteDiscussionCommentInput!) {
+            deleteDiscussionComment(input: $input) {
+                comment { id }
+            }
+        }
+        """
+
+        variables = {"input": {"id": comment_id}}
+        return await self._execute_mutation(mutation, variables, "deleteDiscussionComment")
+
+    async def mark_answer(self, comment_id: str) -> dict:
+        """コメントを回答としてマークする（Q&A 機能）。
+
+        Args:
+            comment_id: コメント ID（node ID）
+
+        Returns:
+            結果を含む辞書。成功時は 'success': True。
+        """
+        mutation = """
+        mutation MarkDiscussionCommentAsAnswer($input: MarkDiscussionCommentAsAnswerInput!) {
+            markDiscussionCommentAsAnswer(input: $input) {
+                comment {
+                    id
+                    isAnswer
+                }
+            }
+        }
+        """
+
+        variables = {"input": {"id": comment_id}}
+        return await self._execute_mutation(mutation, variables, "markDiscussionCommentAsAnswer")
+
+    async def _execute_mutation(self, mutation: str, variables: dict, result_key: str) -> dict:
+        """GraphQL ミューテーションを実行する共通ヘルパー。
+
+        Args:
+            mutation: GraphQL ミューテーション文字列
+            variables: 変数辞書
+            result_key: レスポンスの結果キー
+
+        Returns:
+            結果を含む辞書。
+        """
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            try:
+                response = await client.post(
+                    GITHUB_API_URL,
+                    headers=self.headers,
+                    json={"query": mutation, "variables": variables},
+                )
+                response.raise_for_status()
+                data = response.json()
+
+                if "errors" in data:
+                    return {"success": False, "error": str(data["errors"])}
+
+                return {"success": True, "data": data["data"][result_key]}
+
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 401:
+                    return {"success": False, "error": "認証エラー：GitHub トークンが無効または期限切れです"}
+                elif e.response.status_code == 403:
+                    return {"success": False, "error": "権限エラー：トークンに 'repo' と 'write:discussion' 権限が必要です"}
+                else:
+                    return {"success": False, "error": f"HTTP エラー：{e.response.status_code}"}
             except httpx.RequestError as e:
                 return {"success": False, "error": f"リクエストエラー：{str(e)}"}
             except httpx.HTTPError as e:

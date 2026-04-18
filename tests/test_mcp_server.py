@@ -15,10 +15,10 @@ class TestListTools:
     """list_tools 関数のテスト。"""
 
     @pytest.mark.asyncio
-    async def test_list_tools_returns_three_tools(self):
-        """list_tools が正確に 4 つのツールを返すテスト。"""
+    async def test_list_tools_returns_five_tools(self):
+        """list_tools が正確に 5 つのツールを返すテスト。"""
         tools = await list_tools()
-        assert len(tools) == 4
+        assert len(tools) == 5
 
     @pytest.mark.asyncio
     async def test_post_to_github_discuss_tool_exists(self):
@@ -274,3 +274,185 @@ class TestCallTool:
 
         assert len(result) == 1
         assert "✅ 投稿が完了しました" in result[0].text
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_call_tool_get_discussions_success(self, mock_token, monkeypatch):
+        """get_discussions ツールの成功テスト。"""
+        monkeypatch.setenv("GITHUB_TOKEN", mock_token)
+        monkeypatch.setenv("GITHUB_DISCUSS_OWNER", "test-owner")
+        monkeypatch.setenv("GITHUB_DISCUSS_REPO", "test-repo")
+
+        mock_discussions = {
+            "data": {
+                "repository": {
+                    "discussions": {
+                        "nodes": [
+                            {
+                                "id": "D_test1",
+                                "title": "Test Discussion 1",
+                                "body": "This is a test discussion",
+                                "url": "https://github.com/test-owner/test-repo/discussions/1",
+                                "createdAt": "2026-04-18T00:00:00Z",
+                                "author": {"login": "test-user"},
+                                "category": {"name": "general"}
+                            },
+                            {
+                                "id": "D_test2",
+                                "title": "Test Discussion 2",
+                                "body": "This is another test discussion",
+                                "url": "https://github.com/test-owner/test-repo/discussions/2",
+                                "createdAt": "2026-04-17T00:00:00Z",
+                                "author": {"login": "test-user"},
+                                "category": {"name": "ideas"}
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+        respx.post("https://api.github.com/graphql").mock(
+            return_value=Response(200, json=mock_discussions)
+        )
+
+        api = GitHubDiscussionsAPI(token=mock_token)
+        token = self._setup_request_context(api)
+        try:
+            result = await call_tool("get_discussions", {})
+        finally:
+            self._cleanup_request_context(token)
+
+        assert len(result) == 1
+        assert "📖 最新のディスカッション:" in result[0].text
+        assert "Test Discussion 1" in result[0].text
+        assert "Test Discussion 2" in result[0].text
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_call_tool_get_discussions_empty(self, mock_token, monkeypatch):
+        """get_discussions ツールの空結果テスト。"""
+        monkeypatch.setenv("GITHUB_TOKEN", mock_token)
+        monkeypatch.setenv("GITHUB_DISCUSS_OWNER", "test-owner")
+        monkeypatch.setenv("GITHUB_DISCUSS_REPO", "test-repo")
+
+        mock_empty = {
+            "data": {
+                "repository": {
+                    "discussions": {
+                        "nodes": []
+                    }
+                }
+            }
+        }
+        respx.post("https://api.github.com/graphql").mock(
+            return_value=Response(200, json=mock_empty)
+        )
+
+        api = GitHubDiscussionsAPI(token=mock_token)
+        token = self._setup_request_context(api)
+        try:
+            result = await call_tool("get_discussions", {})
+        finally:
+            self._cleanup_request_context(token)
+
+        assert len(result) == 1
+        assert "📭 ディスカッションが見つかりませんでした" in result[0].text
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_call_tool_reply_to_discussion_success(self, mock_token, monkeypatch):
+        """reply_to_discussion ツールの成功テスト。"""
+        monkeypatch.setenv("GITHUB_TOKEN", mock_token)
+        monkeypatch.setenv("GITHUB_DISCUSS_OWNER", "test-owner")
+        monkeypatch.setenv("GITHUB_DISCUSS_REPO", "test-repo")
+
+        # まずディスカッション詳細を取得
+        mock_discussion_detail = {
+            "data": {
+                "repository": {
+                    "discussion": {
+                        "id": "D_test123",
+                        "number": 13,
+                        "title": "Test Discussion",
+                        "body": "Test body"
+                    }
+                }
+            }
+        }
+
+        # 次にコメント追加
+        mock_comment_success = {
+            "data": {
+                "addDiscussionComment": {
+                    "commentEdge": {
+                        "node": {
+                            "id": "C_test456",
+                            "body": "This is a test reply",
+                            "createdAt": "2026-04-18T00:00:00Z",
+                            "url": "https://github.com/test-owner/test-repo/discussions/13#discussioncomment-12345"
+                        }
+                    }
+                }
+            }
+        }
+
+        call_count = 0
+        def mock_route(request):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return Response(200, json=mock_discussion_detail)
+            else:
+                return Response(200, json=mock_comment_success)
+
+        respx.post("https://api.github.com/graphql").mock(side_effect=mock_route)
+
+        api = GitHubDiscussionsAPI(token=mock_token)
+        token = self._setup_request_context(api)
+        try:
+            result = await call_tool("reply_to_discussion", {
+                "discussion_url": "https://github.com/test-owner/test-repo/discussions/13",
+                "body": "This is a test reply"
+            })
+        finally:
+            self._cleanup_request_context(token)
+
+        assert len(result) == 1
+        assert "✅ コメントを追加しました" in result[0].text
+        assert "https://github.com/test-owner/test-repo/discussions/13" in result[0].text
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_call_tool_reply_to_discussion_invalid_url(self, mock_token, monkeypatch):
+        """reply_to_discussion ツールの無効URLテスト。"""
+        monkeypatch.setenv("GITHUB_TOKEN", mock_token)
+        monkeypatch.setenv("GITHUB_DISCUSS_OWNER", "test-owner")
+        monkeypatch.setenv("GITHUB_DISCUSS_REPO", "test-repo")
+
+        # 空のディスカッション一覧をモック
+        mock_empty_discussions = {
+            "data": {
+                "repository": {
+                    "discussions": {
+                        "nodes": []
+                    }
+                }
+            }
+        }
+        respx.post("https://api.github.com/graphql").mock(
+            return_value=Response(200, json=mock_empty_discussions)
+        )
+
+        api = GitHubDiscussionsAPI(token=mock_token)
+        token = self._setup_request_context(api)
+        try:
+            result = await call_tool("reply_to_discussion", {
+                "discussion_url": "https://github.com/test-owner/test-repo/issues/13",
+                "body": "This is a test reply"
+            })
+        finally:
+            self._cleanup_request_context(token)
+
+        assert len(result) == 1
+        assert "❌ エラー" in result[0].text
+        assert "特定できませんでした" in result[0].text
