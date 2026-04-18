@@ -261,6 +261,84 @@ def reply(
     asyncio.run(_reply())
 
 
+@app.command("show")
+def show_discussion(
+    discussion_url: str = typer.Argument(..., help="表示するディスカッションの URL"),
+    owner: str = typer.Option(
+        None,
+        "--owner",
+        "-o",
+        help=f"GitHub オーナー名（デフォルト：{DEFAULT_OWNER}）"
+    ),
+    repo: str = typer.Option(
+        None,
+        "--repo",
+        "-r",
+        help=f"GitHub リポジトリ名（デフォルト：{DEFAULT_REPO}）"
+    ),
+):
+    """ディスカッションの詳細（コメントの階層構造を含む）を表示します。"""
+    repo_owner = owner or os.getenv("GITHUB_DISCUSS_OWNER", DEFAULT_OWNER)
+    repo_name = repo or os.getenv("GITHUB_DISCUSS_REPO", DEFAULT_REPO)
+
+    async def _show():
+        api = GitHubDiscussionsAPI()
+
+        # URL からディスカッション番号を抽出
+        try:
+            discussion_number = int(discussion_url.rstrip("/").split("/")[-1])
+        except ValueError:
+            typer.echo(f"❌ エラー：無効なディスカッション URL です：{discussion_url}")
+            raise typer.Exit(1)
+
+        # ディスカッション詳細を取得
+        discussion = await api.get_discussion_details(
+            repo_owner, repo_name, discussion_number
+        )
+
+        if not discussion:
+            typer.echo(f"❌ エラー：ディスカッション '#{discussion_number}' が見つかりませんでした。")
+            raise typer.Exit(1)
+
+        # ディスカッション情報を表示
+        typer.echo(f"# {discussion['title']}")
+        typer.echo(f"**URL**: {discussion['url']}")
+        typer.echo(f"**カテゴリ**: {discussion['category']['name']}")
+        typer.echo(f"**作者**: {discussion['author']['login']}")
+        typer.echo(f"**作成日**: {discussion['createdAt']}")
+        typer.echo(f"**更新日**: {discussion['updatedAt']}")
+        typer.echo("")
+        typer.echo("---")
+        typer.echo("")
+        typer.echo(f"{discussion['body']}")
+        typer.echo("")
+        typer.echo("---")
+        typer.echo("")
+
+        # コメントを表示
+        comments = discussion.get("comments", {}).get("nodes", [])
+        if comments:
+            typer.echo(f"## コメント ({len(comments)}件)")
+            typer.echo("")
+
+            for comment in comments:
+                typer.echo(f"### 💬 {comment['author']['login']} - {comment['createdAt']}")
+                typer.echo("")
+                typer.echo(f"{comment['body']}")
+                typer.echo("")
+
+                # 返信を表示
+                replies = comment.get("replies", {}).get("nodes", [])
+                if replies:
+                    for reply in replies:
+                        typer.echo(f"  ↳ **{reply['author']['login']}** ({reply['createdAt']}): {reply['body']}")
+                    typer.echo("")
+        else:
+            typer.echo("コメントはまだありません。")
+
+    asyncio.run(_show())
+
+
 @app.command("setup")
 def setup_guide():
     """セットアップ手順を表示します。"""

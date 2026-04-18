@@ -157,6 +157,28 @@ async def list_tools():
                 },
                 "required": ["discussion_url", "body"]
             }
+        ),
+        Tool(
+            name="get_discussion_details",
+            description="ディスカッションの詳細（コメントの階層構造を含む）を取得します。",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "discussion_url": {
+                        "type": "string",
+                        "description": "詳細を取得するディスカッションの URL"
+                    },
+                    "owner": {
+                        "type": "string",
+                        "description": f"GitHub オーナー名（デフォルト：{DEFAULT_OWNER}）"
+                    },
+                    "repo": {
+                        "type": "string",
+                        "description": f"GitHub リポジトリ名（デフォルト：{DEFAULT_REPO}）"
+                    }
+                },
+                "required": ["discussion_url"]
+            }
         )
     ]
 
@@ -337,6 +359,65 @@ async def call_tool(name: str, arguments: dict):
                 type="text",
                 text=f"❌ コメントの追加に失敗しました：{result.get('error')}"
             )]
+
+    elif name == "get_discussion_details":
+        # URL からディスカッション番号を抽出
+        discussion_url = arguments.get("discussion_url")
+        if not discussion_url:
+            return [TextContent(
+                type="text",
+                text="❌ エラー：discussion_url が必要です。"
+            )]
+
+        # URL から番号を抽出
+        match = re.search(r'/discussions/(\d+)', discussion_url)
+        if match:
+            number = int(match.group(1))
+            # 番号から直接ディスカッション情報を取得
+            discussion = await api.get_discussion_details(repo_owner, repo_name, number)
+        else:
+            return [TextContent(
+                type="text",
+                text=f"❌ エラー：無効なディスカッション URL です：{discussion_url}"
+            )]
+
+        if not discussion:
+            return [TextContent(
+                type="text",
+                text=f"❌ エラー：ディスカッション '{discussion_url}' が見つかりませんでした。"
+            )]
+
+        # 詳細情報をフォーマット
+        result_text = f"# {discussion['title']}\n\n"
+        result_text += f"**URL**: {discussion['url']}\n"
+        result_text += f"**カテゴリ**: {discussion['category']['name']}\n"
+        result_text += f"**作者**: {discussion['author']['login']}\n"
+        result_text += f"**作成日**: {discussion['createdAt']}\n\n"
+        result_text += "---\n\n"
+        result_text += f"{discussion['body']}\n\n"
+        result_text += "---\n\n"
+
+        # コメントを追加
+        comments = discussion.get("comments", {}).get("nodes", [])
+        if comments:
+            result_text += f"## コメント ({len(comments)}件)\n\n"
+            for comment in comments:
+                result_text += f"### 💬 {comment['author']['login']} - {comment['createdAt']}\n\n"
+                result_text += f"{comment['body']}\n\n"
+
+                # 返信を追加
+                replies = comment.get("replies", {}).get("nodes", [])
+                if replies:
+                    for reply in replies:
+                        result_text += f"  ↳ **{reply['author']['login']}** ({reply['createdAt']}): {reply['body']}\n"
+                    result_text += "\n"
+        else:
+            result_text += "コメントはまだありません。\n"
+
+        return [TextContent(
+            type="text",
+            text=result_text
+        )]
 
     else:
         raise ValueError(f"不明なツール：{name}")

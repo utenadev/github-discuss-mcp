@@ -308,10 +308,13 @@ class GitHubDiscussionsAPI:
                 return []
         return []
 
-    async def get_discussion_by_number(
+    async def get_discussion_details(
         self, owner: str, repo: str, number: int
     ) -> Optional[dict]:
-        """ディスカッションを番号で取得する。
+        """ディスカッションの詳細（コメントの階層構造を含む）を取得する。
+
+        ディスカッション本文と、すべてのコメント（ネストされた返信を含む）
+        を取得します。
 
         Args:
             owner: GitHub オーナー名
@@ -319,10 +322,10 @@ class GitHubDiscussionsAPI:
             number: ディスカッション番号
 
         Returns:
-            ディスカッション情報。見つからない場合は None。
+            ディスカッション詳細情報。見つからない場合は None。
         """
         query = """
-        query GetDiscussion($owner: String!, $name: String!, $number: Int!) {
+        query GetDiscussionDetails($owner: String!, $name: String!, $number: Int!) {
             repository(owner: $owner, name: $name) {
                 discussion(number: $number) {
                     id
@@ -331,11 +334,33 @@ class GitHubDiscussionsAPI:
                     body
                     url
                     createdAt
+                    updatedAt
                     author {
                         login
                     }
                     category {
                         name
+                    }
+                    comments(first: 100) {
+                        nodes {
+                            id
+                            body
+                            createdAt
+                            updatedAt
+                            author {
+                                login
+                            }
+                            replies(first: 50) {
+                                nodes {
+                                    id
+                                    body
+                                    createdAt
+                                    author {
+                                        login
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
