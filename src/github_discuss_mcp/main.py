@@ -179,6 +179,56 @@ async def list_tools():
                 },
                 "required": ["discussion_url"]
             }
+        ),
+        Tool(
+            name="update_discussion",
+            description="ディスカッションを更新（編集）します。",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "discussion_url": {
+                        "type": "string",
+                        "description": "更新するディスカッションの URL"
+                    },
+                    "title": {
+                        "type": "string",
+                        "description": "新しいタイトル（オプション）"
+                    },
+                    "body": {
+                        "type": "string",
+                        "description": "新しい本文（オプション）"
+                    }
+                },
+                "required": ["discussion_url"]
+            }
+        ),
+        Tool(
+            name="delete_discussion",
+            description="ディスカッションを削除します。",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "discussion_url": {
+                        "type": "string",
+                        "description": "削除するディスカッションの URL"
+                    }
+                },
+                "required": ["discussion_url"]
+            }
+        ),
+        Tool(
+            name="mark_answer",
+            description="コメントを回答としてマークします（Q&A 機能）。",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "comment_id": {
+                        "type": "string",
+                        "description": "マークするコメントの ID"
+                    }
+                },
+                "required": ["comment_id"]
+            }
         )
     ]
 
@@ -418,6 +468,62 @@ async def call_tool(name: str, arguments: dict):
             type="text",
             text=result_text
         )]
+
+    elif name == "update_discussion":
+        discussion_url = arguments.get("discussion_url")
+        title = arguments.get("title")
+        body = arguments.get("body")
+
+        if not discussion_url:
+            return [TextContent(type="text", text="❌ エラー：discussion_url が必要です。")]
+        if not title and not body:
+            return [TextContent(type="text", text="❌ エラー：title または body が必要です。")]
+
+        match = re.search(r'/discussions/(\d+)', discussion_url)
+        if not match:
+            return [TextContent(type="text", text=f"❌ エラー：無効な URL です：{discussion_url}")]
+
+        number = int(match.group(1))
+        discussion = await api.get_discussion_by_number(repo_owner, repo_name, number)
+        if not discussion:
+            return [TextContent(type="text", text=f"❌ エラー：ディスカッションが見つかりません：{discussion_url}")]
+
+        result = await api.update_discussion(discussion["id"], title, body)
+        if result.get("success"):
+            return [TextContent(type="text", text=f"✅ ディスカッションを更新しました！\n{discussion_url}")]
+        else:
+            return [TextContent(type="text", text=f"❌ 更新に失敗しました：{result.get('error')}")]
+
+    elif name == "delete_discussion":
+        discussion_url = arguments.get("discussion_url")
+        if not discussion_url:
+            return [TextContent(type="text", text="❌ エラー：discussion_url が必要です。")]
+
+        match = re.search(r'/discussions/(\d+)', discussion_url)
+        if not match:
+            return [TextContent(type="text", text=f"❌ エラー：無効な URL です：{discussion_url}")]
+
+        number = int(match.group(1))
+        discussion = await api.get_discussion_by_number(repo_owner, repo_name, number)
+        if not discussion:
+            return [TextContent(type="text", text=f"❌ エラー：ディスカッションが見つかりません：{discussion_url}")]
+
+        result = await api.delete_discussion(discussion["id"])
+        if result.get("success"):
+            return [TextContent(type="text", text=f"✅ ディスカッションを削除しました。")]
+        else:
+            return [TextContent(type="text", text=f"❌ 削除に失敗しました：{result.get('error')}")]
+
+    elif name == "mark_answer":
+        comment_id = arguments.get("comment_id")
+        if not comment_id:
+            return [TextContent(type="text", text="❌ エラー：comment_id が必要です。")]
+
+        result = await api.mark_answer(comment_id)
+        if result.get("success"):
+            return [TextContent(type="text", text=f"✅ コメントを回答としてマークしました。")]
+        else:
+            return [TextContent(type="text", text=f"❌ マークに失敗しました：{result.get('error')}")]
 
     else:
         raise ValueError(f"不明なツール：{name}")

@@ -339,6 +339,130 @@ def show_discussion(
     asyncio.run(_show())
 
 
+@app.command("update")
+def update_discussion(
+    discussion_url: str = typer.Argument(..., help="更新するディスカッションの URL"),
+    title: str = typer.Option(None, "--title", "-t", help="新しいタイトル"),
+    body: str = typer.Option(None, "--body", "-b", help="新しい本文"),
+    owner: str = typer.Option(
+        None, "--owner", "-o",
+        help=f"GitHub オーナー名（デフォルト：{DEFAULT_OWNER}）"
+    ),
+    repo: str = typer.Option(
+        None, "--repo", "-r",
+        help=f"GitHub リポジトリ名（デフォルト：{DEFAULT_REPO}）"
+    ),
+):
+    """ディスカッションを更新（編集）します。"""
+    repo_owner = owner or os.getenv("GITHUB_DISCUSS_OWNER", DEFAULT_OWNER)
+    repo_name = repo or os.getenv("GITHUB_DISCUSS_REPO", DEFAULT_REPO)
+
+    if not title and not body:
+        typer.echo("❌ エラー：--title または --body が必要です。")
+        raise typer.Exit(1)
+
+    async def _update():
+        api = GitHubDiscussionsAPI()
+
+        # URL からディスカッション番号を抽出
+        try:
+            discussion_number = int(discussion_url.rstrip("/").split("/")[-1])
+        except ValueError:
+            typer.echo(f"❌ エラー：無効なディスカッション URL です：{discussion_url}")
+            raise typer.Exit(1)
+
+        # ディスカッションを取得して ID を取得
+        discussion = await api.get_discussion_by_number(repo_owner, repo_name, discussion_number)
+        if not discussion:
+            typer.echo(f"❌ エラー：ディスカッション '#{discussion_number}' が見つかりませんでした。")
+            raise typer.Exit(1)
+
+        # 更新実行
+        result = await api.update_discussion(discussion["id"], title, body)
+        if result.get("success"):
+            typer.echo(f"✅ ディスカッションを更新しました！\n{discussion_url}")
+        else:
+            typer.echo(f"❌ 更新に失敗しました：{result.get('error')}")
+            raise typer.Exit(1)
+
+    asyncio.run(_update())
+
+
+@app.command("delete")
+def delete_discussion(
+    discussion_url: str = typer.Argument(..., help="削除するディスカッションの URL"),
+    owner: str = typer.Option(
+        None, "--owner", "-o",
+        help=f"GitHub オーナー名（デフォルト：{DEFAULT_OWNER}）"
+    ),
+    repo: str = typer.Option(
+        None, "--repo", "-r",
+        help=f"GitHub リポジトリ名（デフォルト：{DEFAULT_REPO}）"
+    ),
+    yes: bool = typer.Option(False, "--yes", "-y", help="確認なしで削除"),
+):
+    """ディスカッションを削除します。"""
+    repo_owner = owner or os.getenv("GITHUB_DISCUSS_OWNER", DEFAULT_OWNER)
+    repo_name = repo or os.getenv("GITHUB_DISCUSS_REPO", DEFAULT_REPO)
+
+    if not yes:
+        typer.echo(f"⚠️  本当に削除しますか？：{discussion_url}")
+        if not typer.confirm("この操作は取り消せません。"):
+            raise typer.Exit(0)
+
+    async def _delete():
+        api = GitHubDiscussionsAPI()
+
+        try:
+            discussion_number = int(discussion_url.rstrip("/").split("/")[-1])
+        except ValueError:
+            typer.echo(f"❌ エラー：無効なディスカッション URL です：{discussion_url}")
+            raise typer.Exit(1)
+
+        discussion = await api.get_discussion_by_number(repo_owner, repo_name, discussion_number)
+        if not discussion:
+            typer.echo(f"❌ エラー：ディスカッション '#{discussion_number}' が見つかりませんでした。")
+            raise typer.Exit(1)
+
+        result = await api.delete_discussion(discussion["id"])
+        if result.get("success"):
+            typer.echo(f"✅ ディスカッションを削除しました。")
+        else:
+            typer.echo(f"❌ 削除に失敗しました：{result.get('error')}")
+            raise typer.Exit(1)
+
+    asyncio.run(_delete())
+
+
+@app.command("mark-answer")
+def mark_answer(
+    comment_url: str = typer.Argument(..., help="回答としてマークするコメントの URL"),
+    owner: str = typer.Option(
+        None, "--owner", "-o",
+        help=f"GitHub オーナー名（デフォルト：{DEFAULT_OWNER}）"
+    ),
+    repo: str = typer.Option(
+        None, "--repo", "-r",
+        help=f"GitHub リポジトリ名（デフォルト：{DEFAULT_REPO}）"
+    ),
+):
+    """コメントを回答としてマークします（Q&A 機能）。"""
+    repo_owner = owner or os.getenv("GITHUB_DISCUSS_OWNER", DEFAULT_OWNER)
+    repo_name = repo or os.getenv("GITHUB_DISCUSS_REPO", DEFAULT_REPO)
+
+    async def _mark():
+        api = GitHubDiscussionsAPI()
+
+        # コメント ID を抽出（簡易実装：URL から直接 ID は取得できないため、詳細取得で対応）
+        # 実際にはコメント ID を別途取得する必要がある
+        typer.echo("⚠️  現在、コメント URL からの ID 抽出はサポートされていません。")
+        typer.echo("   代わりに、ディスカッション URL とコメント番号を指定してください。")
+        typer.echo("   例：github-discuss mark-answer <discussion_url> --comment-id <id>")
+        # 将来的に実装
+
+    asyncio.run(_mark())
+
+
 @app.command("setup")
 def setup_guide():
     """セットアップ手順を表示します。"""
