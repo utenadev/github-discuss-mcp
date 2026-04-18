@@ -57,11 +57,16 @@ def send_to_tmux(pane, message):
     if not pane:
         print(f"⚠️ tmux pane が指定されていません：{message}", file=sys.stderr)
         return
-    
+
     try:
         # メッセージを送信（Enter キーと一緒に行を送る）
         subprocess.run(
             ["tmux", "send-keys", "-t", pane, f"# 📬 {message}", "C-m"],
+            timeout=5
+        )
+        # 最後の改行を追加（Agent によって必要）
+        subprocess.run(
+            ["tmux", "send-keys", "-t", pane, "C-m"],
             timeout=5
         )
     except Exception as e:
