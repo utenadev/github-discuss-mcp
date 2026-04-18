@@ -102,6 +102,24 @@
 
 ### 注意点
 
+**⚠️ 重要：Mailbox 監視スクリプトの起動はユーザーの役割です！**
+
+Coding Agent はスクリプトを起動できません。ユーザーが tmux で事前に起動しておく必要があります。
+
+**起動コマンド**（ユーザーが実行）:
+```bash
+# 各ウィンドウで実行
+./skills/mailbox-skill/inbox_watcher_polling.py qwen 1.1
+./skills/mailbox-skill/inbox_watcher_polling.py gemini 2.1
+./skills/mailbox-skill/inbox_watcher_polling.py vibe 3.1
+```
+
+**起動確認**（Agent が実行）:
+```bash
+ps aux | grep inbox_watcher_polling
+```
+
+**技術的な注意点**:
 1. **bash を使わない**:
    - ❌ `bash skills/mailbox-skill/inbox_watcher_polling.py gemini`
    - ✅ `./skills/mailbox-skill/inbox_watcher_polling.py gemini`
@@ -255,10 +273,12 @@ github-discuss-mcp/
    br --help
    ```
 
-2. [ ] **Mailbox 監視スクリプトを起動**
+2. [ ] **Mailbox 監視スクリプトの起動状況を確認**
    ```bash
-   ./skills/mailbox-skill/inbox_watcher_polling.py <target> <window.pane>
+   ps aux | grep inbox_watcher_polling
    ```
+   
+   **注意**: 起動していない場合は、ユーザーに依頼してください。Coding Agent はスクリプトを起動できません。
 
 3. [ ] **bd-2gn を確認**（通信用 Issue）
    ```bash
