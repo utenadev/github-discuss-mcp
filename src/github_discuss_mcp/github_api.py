@@ -357,18 +357,18 @@ class GitHubDiscussionsAPI:
                 return None
         return None
 
-    async def add_comment(self, discussion_id: str, body: str) -> dict:
+    async def add_comment(self, discussion_id: str, body: str, reply_to_id: Optional[str] = None) -> dict:
         """ディスカッションにコメント（返信）を追加する。
 
-        既存のディスカッションにコメントを追加します。
+        既存のディスカッションにコメント、または既存のコメントに返信を追加します。
 
         Args:
             discussion_id: ディスカッション ID（node ID）
             body: コメント本文（Markdown 形式）
+            reply_to_id: 返信先のコメント ID（オプション）
 
         Returns:
-            結果を含む辞書。成功時は 'success': True、
-            失敗時は 'success': False と 'error' を含む。
+            結果を含む辞書。
         """
         # Discussion へのコメントには addDiscussionComment を使用
         mutation = """
@@ -389,6 +389,8 @@ class GitHubDiscussionsAPI:
                 "body": body,
             }
         }
+        if reply_to_id:
+            variables["input"]["replyToId"] = reply_to_id
 
         async with httpx.AsyncClient(timeout=30.0) as client:
             try:

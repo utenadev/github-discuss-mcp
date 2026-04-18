@@ -164,3 +164,6 @@ cython_debug/
 .gemini/
 .ruff_cache/
 .beads/
+
+# bv (beads viewer) local config and caches
+.bv/
