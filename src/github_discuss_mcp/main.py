@@ -5,6 +5,7 @@ GitHub Discussions に投稿する機能を提供します。
 
 import os
 import sys
+import re
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from mcp.server import Server, NotificationOptions
@@ -290,7 +291,6 @@ async def call_tool(name: str, arguments: dict):
 
     elif name == "reply_to_discussion":
         # URL からディスカッション ID を取得する必要がある
-        # 簡易的に URL をそのまま使用（GitHub API は discussion ID を必要とする）
         discussion_url = arguments.get("discussion_url")
         body = arguments.get("body")
 
@@ -300,21 +300,28 @@ async def call_tool(name: str, arguments: dict):
                 text="❌ エラー：discussion_url と body が必要です。"
             )]
 
-        # URL からディスカッション ID を取得するために、まずディスカッション一覧を取得
-        # して URL が一致するものを探す（簡易実装）
-        discussions = await api.get_discussions(repo_owner, repo_name)
-
+        # URL からディスカッション番号を抽出 (例: .../discussions/13)
+        match = re.search(r"discussions/(\d+)", discussion_url)
         discussion_id = None
-        for d in discussions:
-            if d["url"] == discussion_url:
-                discussion_id = d["id"]
-                break
+        
+        if match:
+            number = int(match.group(1))
+            # 番号から直接ディスカッション情報を取得
+            discussion = await api.get_discussion_by_number(repo_owner, repo_name, number)
+            if discussion:
+                discussion_id = discussion["id"]
+        else:
+            # 正規表現でマッチしない場合は、従来の一覧検索をフォールバックとして試行
+            discussions = await api.get_discussions(repo_owner, repo_name)
+            for d in discussions:
+                if d["url"] == discussion_url:
+                    discussion_id = d["id"]
+                    break
 
         if not discussion_id:
-            # 見つからない場合、エラーを返す
             return [TextContent(
                 type="text",
-                text=f"❌ エラー：ディスカッション '{discussion_url}' が見つかりませんでした。"
+                text=f"❌ エラー：ディスカッション '{discussion_url}' の ID を特定できませんでした。"
             )]
 
         # コメントを追加

@@ -163,3 +163,4 @@ cython_debug/
 .qwen/
 .gemini/
 .ruff_cache/
+.beads/
