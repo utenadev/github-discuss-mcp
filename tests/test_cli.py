@@ -10,6 +10,85 @@ from github_discuss_mcp.cli import app
 runner = CliRunner()
 
 
+class TestSearchCommand:
+    """search コマンドのテスト（TDD）。"""
+
+    @respx.mock
+    def test_search_keyword_only(self, mock_token, monkeypatch):
+        """キーワード検索の最小限テスト。"""
+        monkeypatch.setenv("GITHUB_TOKEN", mock_token)
+        monkeypatch.setenv("GITHUB_DISCUSS_REPO_ID", "R_test_repo")
+
+        # モックレスポンス（search クエリ用）
+        mock_response = {
+            "data": {
+                "search": {
+                    "nodes": [
+                        {
+                            "id": "D_test_1",
+                            "title": "Test Discussion 1",
+                            "body": "This is a test body with keyword",
+                            "url": "https://github.com/test/repo/discussions/1",
+                            "category": {"name": "General"},
+                            "author": {"login": "testuser"},
+                            "createdAt": "2026-04-19T12:00:00Z",
+                        }
+                    ]
+                }
+            }
+        }
+        respx.post("https://api.github.com/graphql").mock(
+            return_value=Response(200, json=mock_response)
+        )
+
+        # キーワード検索を実行
+        result = runner.invoke(app, [
+            "search", "keyword",
+        ])
+
+        # 成功を確認
+        assert result.exit_code == 0
+        assert "Test Discussion 1" in result.output
+        assert "1 件" in result.output
+
+    @pytest.mark.skip("カテゴリフィルタは次回リリース v0.2.0 へ")
+    @respx.mock
+    def test_search_with_category_filter(self, mock_token, monkeypatch):
+        """カテゴリフィルタ付き検索テスト。"""
+        monkeypatch.setenv("GITHUB_TOKEN", mock_token)
+        monkeypatch.setenv("GITHUB_DISCUSS_REPO_ID", "R_test_repo")
+
+        mock_response = {
+            "data": {
+                "search": {
+                    "nodes": [
+                        {
+                            "id": "D_test_1",
+                            "title": "Test Discussion 1",
+                            "body": "Test body",
+                            "url": "https://github.com/test/repo/discussions/1",
+                            "category": {"name": "Ideas"},
+                            "author": {"login": "testuser"},
+                            "createdAt": "2026-04-19T12:00:00Z",
+                        }
+                    ]
+                }
+            }
+        }
+        respx.post("https://api.github.com/graphql").mock(
+            return_value=Response(200, json=mock_response)
+        )
+
+        # カテゴリフィルタ付き検索
+        result = runner.invoke(app, [
+            "search", "test",
+            "--category", "ideas",
+        ])
+
+        assert result.exit_code == 0
+        assert "Test Discussion 1" in result.output
+
+
 class TestPostCommand:
     """post コマンドのテスト。"""
 

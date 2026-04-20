@@ -30,6 +30,15 @@ CATEGORY_ENV_VARS = {
     "show-and-tell": ("GITHUB_DISCUSS_CATEGORY_SHOW", "AI_LOUNGE_CATEGORY_SHOW"),
 }
 
+# カテゴリ名の別名マップ（柔軟なマッチング用）
+CATEGORY_ALIASES = {
+    # 標準名 → [別名一覧]
+    "general": ["general", "announcements"],
+    "ideas": ["ideas", "idea"],
+    "q-a": ["q-a", "q&a", "qa", "question", "questions"],
+    "show-and-tell": ["show-and-tell", "show", "showcase"],
+}
+
 # 必須環境変数
 REQUIRED_ENV_VARS = ["GITHUB_TOKEN"]
 
@@ -67,6 +76,29 @@ def get_category_id_from_env(category: str) -> Optional[str]:
     return None
 
 
+def normalize_category_name(category_name: str) -> str:
+    """カテゴリ名を正規化する。
+
+    大文字小文字を区別せず、別名を標準名に変換する。
+
+    Args:
+        category_name: カテゴリ名
+
+    Returns:
+        正規化されたカテゴリ名（標準名）
+    """
+    # 小文字に変換
+    normalized = category_name.lower().strip()
+    
+    # 別名マップから標準名を検索
+    for standard_name, aliases in CATEGORY_ALIASES.items():
+        if normalized in aliases:
+            return standard_name
+    
+    # 該当する別名がなければ元の値を返す
+    return normalized
+
+
 async def resolve_category_id(
     api: GitHubDiscussionsAPI,
     category_name: str,
@@ -100,10 +132,14 @@ async def resolve_category_id(
     if repo_name is None:
         repo_name = os.getenv("GITHUB_DISCUSS_REPO", DEFAULT_REPO)
 
-    # Step 3: API で動的に取得
+    # Step 3: カテゴリ名を正規化
+    normalized_name = normalize_category_name(category_name)
+
+    # Step 4: API で動的に取得（正規化された名前でマッチ）
     categories = await api.get_categories(repo_owner, repo_name)
     for cat in categories:
-        if cat["name"].lower() == category_name:
+        # 正規化された名前で比較
+        if normalize_category_name(cat["name"]) == normalized_name:
             return cat["id"]
 
     return None

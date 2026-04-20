@@ -685,3 +685,84 @@ class GitHubDiscussionsAPI:
                 return {"success": False, "error": f"リクエストエラー：{str(e)}"}
             except httpx.HTTPError as e:
                 return {"success": False, "error": f"HTTP エラー：{str(e)}"}
+
+    async def search_discussions(
+        self,
+        repo_owner: str,
+        repo_name: str,
+        keyword: str,
+        category_id: Optional[str] = None,
+    ) -> list:
+        """ディスカッションを検索する。
+
+        Args:
+            repo_owner: GitHub オーナー名
+            repo_name: リポジトリ名
+            keyword: 検索キーワード
+            category_id: カテゴリ ID（オプション）
+
+        Returns:
+            検索結果のリスト。
+        """
+        # カテゴリフィルタを構築
+        category_filter = f'category: "{category_id}"' if category_id else ""
+        
+        # 検索クエリを構築
+        search_query = f'repo:{repo_owner}/{repo_name} {keyword} {category_filter}'.strip()
+        
+        # GraphQL クエリ
+        query = """
+        query SearchDiscussions($query: String!, $first: Int!) {
+            search(query: $query, type: DISCUSSION, first: $first) {
+                nodes {
+                    ... on Discussion {
+                        id
+                        title
+                        body
+                        url
+                        category { name }
+                        author { login }
+                        createdAt
+                    }
+                }
+            }
+        }
+        """
+        
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            try:
+                response = await client.post(
+                    GITHUB_API_URL,
+                    headers=self.headers,
+                    json={
+                        "query": query,
+                        "variables": {
+                            "query": search_query,
+                            "first": 30,
+                        }
+                    },
+                )
+                response.raise_for_status()
+                data = response.json()
+                
+                if "errors" in data:
+                    return []
+                
+                nodes = data["data"]["search"]["nodes"]
+                
+                # 結果を整形
+                results = []
+                for node in nodes:
+                    results.append({
+                        "id": node["id"],
+                        "title": node["title"],
+                        "url": node["url"],
+                        "category": node["category"]["name"],
+                        "author": node["author"]["login"] if node["author"] else "unknown",
+                        "created_at": node["createdAt"],
+                    })
+                
+                return results
+                
+            except (httpx.RequestError, httpx.HTTPError):
+                return []

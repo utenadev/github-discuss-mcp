@@ -229,6 +229,32 @@ async def list_tools():
                 },
                 "required": ["comment_id"]
             }
+        ),
+        Tool(
+            name="search_discussions",
+            description="GitHub Discussions を検索します。",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "keyword": {
+                        "type": "string",
+                        "description": "検索キーワード"
+                    },
+                    "category": {
+                        "type": "string",
+                        "description": "カテゴリ名でフィルタリング（オプション）"
+                    },
+                    "owner": {
+                        "type": "string",
+                        "description": f"GitHub オーナー名（デフォルト：{DEFAULT_OWNER}）"
+                    },
+                    "repo": {
+                        "type": "string",
+                        "description": f"GitHub リポジトリ名（デフォルト：{DEFAULT_REPO}）"
+                    }
+                },
+                "required": ["keyword"]
+            }
         )
     ]
 
@@ -524,6 +550,45 @@ async def call_tool(name: str, arguments: dict):
             return [TextContent(type="text", text=f"✅ コメントを回答としてマークしました。")]
         else:
             return [TextContent(type="text", text=f"❌ マークに失敗しました：{result.get('error')}")]
+
+    elif name == "search_discussions":
+        keyword = arguments.get("keyword")
+        if not keyword:
+            return [TextContent(type="text", text="❌ エラー：keyword が必要です。")]
+
+        category = arguments.get("category")
+        category_id = None
+        if category:
+            category_id = await resolve_category_id(
+                api,
+                category,
+                repo_owner=repo_owner,
+                repo_name=repo_name,
+            )
+
+        results = await api.search_discussions(
+            repo_owner=repo_owner,
+            repo_name=repo_name,
+            keyword=keyword,
+            category_id=category_id,
+        )
+
+        if not results:
+            return [TextContent(
+                type="text",
+                text=f"⚠️  該当するディスカッションはありません。\nキーワード：{keyword}"
+            )]
+
+        output = [f"📋 検索結果：{len(results)} 件\n"]
+        for r in results:
+            output.append(f"### {r['title']}")
+            output.append(f"   URL: {r['url']}")
+            output.append(f"   カテゴリ：{r['category']}")
+            output.append(f"   投稿者：{r['author']}")
+            output.append(f"   日時：{r['created_at']}")
+            output.append("")
+
+        return [TextContent(type="text", text="\n".join(output))]
 
     else:
         raise ValueError(f"不明なツール：{name}")

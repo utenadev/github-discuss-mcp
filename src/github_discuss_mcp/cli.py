@@ -253,9 +253,14 @@ def reply(
         result = await api.add_comment(discussion_id, body)
 
         if result.get("success"):
-            typer.echo(f"✅ コメントを追加しました！\n{discussion_url}")
+            # エラーメッセージは表示せず、成功時のみ通知
+            typer.echo(f"✅ コメントを追加しました！")
+            typer.echo(f"   URL: {discussion_url}")
         else:
-            typer.echo(f"❌ コメントの追加に失敗しました：{result.get('error')}")
+            # エラーの場合は詳細を表示
+            error_msg = result.get("error", "不明なエラー")
+            typer.echo(f"❌ コメントの追加に失敗しました")
+            typer.echo(f"   詳細：{error_msg}")
             raise typer.Exit(1)
 
     asyncio.run(_reply())
@@ -461,6 +466,75 @@ def mark_answer(
         # 将来的に実装
 
     asyncio.run(_mark())
+
+
+@app.command("search")
+def search(
+    keyword: str = typer.Argument(..., help="検索キーワード"),
+    category: str = typer.Option(
+        None,
+        "--category",
+        "-c",
+        help="カテゴリフィルタ：general, ideas, q-a, show-and-tell"
+    ),
+    owner: str = typer.Option(
+        None,
+        "--owner",
+        "-o",
+        help=f"GitHub オーナー名（デフォルト：{DEFAULT_OWNER}）"
+    ),
+    repo: str = typer.Option(
+        None,
+        "--repo",
+        "-r",
+        help=f"GitHub リポジトリ名（デフォルト：{DEFAULT_REPO}）"
+    ),
+):
+    """ディスカッションを検索します。"""
+    import asyncio
+    
+    # リポジトリ情報の決定
+    repo_owner = owner or os.getenv("GITHUB_DISCUSS_OWNER", DEFAULT_OWNER)
+    repo_name = repo or os.getenv("GITHUB_DISCUSS_REPO", DEFAULT_REPO)
+    
+    async def _search():
+        api = GitHubDiscussionsAPI()
+        
+        # カテゴリ ID の解決（指定された場合）
+        category_id = None
+        if category:
+            category_id = await resolve_category_id(
+                api,
+                category,
+                repo_owner=repo_owner,
+                repo_name=repo_name,
+            )
+        
+        # 検索実行
+        results = await api.search_discussions(
+            repo_owner=repo_owner,
+            repo_name=repo_name,
+            keyword=keyword,
+            category_id=category_id,
+        )
+        
+        # 結果表示
+        if not results:
+            typer.echo(f"⚠️  該当するディスカッションはありません")
+            return
+        
+        typer.echo(f"📋 検索結果：{len(results)} 件")
+        typer.echo("")
+        
+        for r in results:
+            typer.echo(f"### {r['title']}")
+            typer.echo(f"   URL: {r['url']}")
+            typer.echo(f"   カテゴリ：{r['category']}")
+            typer.echo(f"   投稿者：{r['author']}")
+            typer.echo(f"   日時：{r['created_at']}")
+            typer.echo("")
+    
+    asyncio.run(_search())
 
 
 @app.command("setup")

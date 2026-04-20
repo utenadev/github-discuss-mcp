@@ -172,3 +172,7 @@ cython_debug/
 .vibe/
 t/
 .agentpost/
+
+# Gemini instructions and context
+GEMINI.md
+.gemini
