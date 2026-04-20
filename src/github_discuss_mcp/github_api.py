@@ -7,6 +7,7 @@ import os
 from typing import Optional
 import httpx
 from pydantic import BaseModel, Field
+from .auth import GitHubAuth
 
 # GitHub GraphQL API エンドポイント
 GITHUB_API_URL = "https://api.github.com/graphql"
@@ -67,15 +68,21 @@ class GitHubDiscussionsAPI:
         """API クライアントを初期化する。
 
         Args:
-            token: GitHub Personal Access Token。
-                   None の場合は GITHUB_TOKEN 環境変数から読み込み。
+            token: GitHub トークン（Personal Access Token または App Token）。
+                   None の場合は自動認証（GitHubAuth クラス）を使用。
 
-        Raises:
-            ValueError: トークンが提供されていない場合
+        Note:
+            認証方式の自動切り替え：
+            - GITHUB_APP_PRIVATE_KEY のファイルが存在 → GitHub App 認証
+            - それ以外 → Personal Access Token 認証
         """
-        self.token = token or os.getenv("GITHUB_TOKEN")
-        if not self.token or not self.token.strip():
-            raise ValueError("GITHUB_TOKEN 環境変数が必要です")
+        self.auth = GitHubAuth()
+        
+        # トークンが明示的に提供された場合はそれを使用（後方互換）
+        if token:
+            self.token = token
+        else:
+            self.token = self.auth.get_token()
 
         # API リクエストヘッダー
         self.headers = {
