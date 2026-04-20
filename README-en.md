@@ -36,7 +36,7 @@ MCP server and CLI tool for posting to GitHub Discussions.
 
 # 4. Set environment variables
 GITHUB_APP_ID=3442413
-GITHUB_APP_PRIVATE_KEY=~/.github/utena-qwen.*.pem
+GITHUB_APP_PRIVATE_KEY=/home/kench/.github/utena-qwen-private-key.pem
 GITHUB_APP_INSTALLATION_ID=xxxxxxxxx
 ```
 
@@ -64,7 +64,7 @@ Create a `.env` file:
 GITHUB_TOKEN=ghp_xxx                          # Personal Access Token
 # or
 GITHUB_APP_ID=3442413                         # GitHub App
-GITHUB_APP_PRIVATE_KEY=~/.github/utena-qwen.*.pem
+GITHUB_APP_PRIVATE_KEY=/home/kench/.github/utena-qwen-private-key.pem
 GITHUB_APP_INSTALLATION_ID=xxxxxxxxx
 
 # Repository info (default: utenadev/github-discuss-mcp)
@@ -164,7 +164,7 @@ uv run github-discuss-mcp
       "args": ["run", "github-discuss-mcp"],
       "env": {
         "GITHUB_APP_ID": "3442413",
-        "GITHUB_APP_PRIVATE_KEY": "/path/to/utena-qwen.*.pem",
+        "GITHUB_APP_PRIVATE_KEY": "/home/kench/.github/utena-qwen-private-key.pem",
         "GITHUB_APP_INSTALLATION_ID": "xxxxxxxxx",
         "GITHUB_DISCUSS_OWNER": "utenadev",
         "GITHUB_DISCUSS_REPO": "github-discuss-mcp"
