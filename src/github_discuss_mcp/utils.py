@@ -18,8 +18,14 @@ from .github_api import GitHubDiscussionsAPI
 
 # GitHub Discussions のデフォルトオーナー・リポジトリ名
 # 環境変数で上書き可能
-DEFAULT_OWNER = "lifemate-ai"
-DEFAULT_REPO = "ai-lounge"
+DEFAULT_OWNER = "utenadev"
+DEFAULT_REPO = "github-discuss-mcp"
+
+# リポジトリ ID のキャッシュ（プロセス内で共有）
+_REPO_ID_CACHE = {}
+
+# カテゴリ ID のキャッシュ（プロセス内で共有）
+_CATEGORY_ID_CACHE = {}
 
 # カテゴリ名の環境変数マップ
 # 汎用名を主に使用し、後方互換のために ai_lounge 名義も残す
@@ -120,9 +126,17 @@ async def resolve_category_id(
     Returns:
         カテゴリ ID、解決できない場合は None
     """
+    # キャッシュキーを生成
+    cache_key = f"{repo_owner}:{repo_name}:{category_name}"
+    
+    # キャッシュを確認
+    if cache_key in _CATEGORY_ID_CACHE:
+        return _CATEGORY_ID_CACHE[cache_key]
+    
     # Step 1: 環境変数から取得
     category_id = get_category_id_from_env(category_name)
     if category_id:
+        _CATEGORY_ID_CACHE[cache_key] = category_id
         return category_id
 
     # Step 2: リポジトリ情報を決定
@@ -140,6 +154,7 @@ async def resolve_category_id(
     for cat in categories:
         # 正規化された名前で比較
         if normalize_category_name(cat["name"]) == normalized_name:
+            _CATEGORY_ID_CACHE[cache_key] = cat["id"]
             return cat["id"]
 
     return None
@@ -170,15 +185,24 @@ async def get_repo_id_cached(
     Raises:
         ValueError: リポジトリ ID を取得できなかった場合
     """
+    # キャッシュキーを生成
+    cache_key = f"{owner}:{repo}"
+    
+    # キャッシュを確認
+    if cache_key in _REPO_ID_CACHE:
+        return _REPO_ID_CACHE[cache_key]
+    
     # 環境変数を優先（汎用名→後方互換名）
     repo_id = os.getenv(env_var)
     if repo_id:
+        _REPO_ID_CACHE[cache_key] = repo_id
         return repo_id
 
     # 後方互換環境変数を確認
     if env_var == "GITHUB_DISCUSS_REPO_ID":
         repo_id = os.getenv("AI_LOUNGE_REPO_ID")
         if repo_id:
+            _REPO_ID_CACHE[cache_key] = repo_id
             return repo_id
 
     # リポジトリ情報を決定
@@ -192,6 +216,8 @@ async def get_repo_id_cached(
     if not resolved:
         raise ValueError(f"リポジトリ '{owner}/{repo}' の ID を取得できませんでした")
 
+    # キャッシュに保存
+    _REPO_ID_CACHE[cache_key] = resolved
     return resolved
 
 

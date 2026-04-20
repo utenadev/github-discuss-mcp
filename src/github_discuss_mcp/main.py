@@ -6,12 +6,23 @@ GitHub Discussions に投稿する機能を提供します。
 import os
 import sys
 import re
+from pathlib import Path
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from mcp.server import Server, NotificationOptions
 from mcp.server.stdio import stdio_server
 from mcp.server.models import InitializationOptions
 from mcp.types import Tool, TextContent
+
+# .env ファイルを読み込む（グローバルで 1 回だけ）
+# プロジェクトルートの .env を検索
+for _dotenv_path in [
+    Path.cwd() / ".env",
+    Path(__file__).parent.parent.parent / ".env",
+]:
+    if _dotenv_path.exists():
+        load_dotenv(dotenv_path=_dotenv_path)
+        break
 
 from .github_api import GitHubDiscussionsAPI, DiscussionInput
 from .utils import (
@@ -39,8 +50,8 @@ async def server_lifespan(server: Server):
     Yields:
         API インスタンスを含むコンテキスト辞書
     """
-    # 起動時に API を初期化
-    api = GitHubDiscussionsAPI(token=os.getenv("GITHUB_TOKEN"))
+    # 起動時に API を初期化（.env はグローバルで読み込み済み）
+    api = GitHubDiscussionsAPI()
     yield {"api": api}
 
 
@@ -604,19 +615,14 @@ def run():
     標準入力・標準出力を使用して MCP プロトコルで通信します。
     """
     import asyncio
-    from pathlib import Path
 
-    # スクリプトの場所からプロジェクトルートにある .env を探す
-    base_path = Path(__file__).parent.parent.parent
-    env_path = base_path / ".env"
-    
-    # .env ファイルを読み込む
-    load_dotenv(dotenv_path=env_path)
+    # 認証情報の確認（.env はグローバルで読み込み済み）
+    from .auth import GitHubAuth
+    auth = GitHubAuth()
 
-    # トークンの確認（デバッグ用に stderr に出力）
-    if not os.getenv("GITHUB_TOKEN"):
-        print("❌ エラー：GITHUB_TOKEN が環境変数に設定されていません。", file=sys.stderr)
-        # 終了せずに続行すると、ツール実行時にエラーになる
+    if not auth.is_app_auth() and not os.getenv("GITHUB_TOKEN"):
+        print("❌ エラー：認証情報が設定されていません。", file=sys.stderr)
+        print("   GITHUB_TOKEN または GITHUB_APP_PRIVATE_KEY が必要です。", file=sys.stderr)
 
     async def main():
         async with stdio_server() as (read_stream, write_stream):
