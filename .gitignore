@@ -170,9 +170,10 @@ cython_debug/
 
 # Local agent configs
 .vibe/
-# t/ はテスト成果物（スクリーンショット等）を除外、AgentPost は例外
-# t/*
 .agentpost/
+
+# t/ ディレクトリ（テスト成果物・スクリーンショット等）
+t/
 
 # Gemini instructions and context
 GEMINI.md
