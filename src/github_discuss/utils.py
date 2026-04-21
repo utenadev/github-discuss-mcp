@@ -39,6 +39,12 @@ CATEGORY_ALIASES = {
     "show-and-tell": ["show-and-tell", "show", "showcase"],
 }
 
+# リポジトリ ID のキャッシュ（プロセス内で共有）
+_REPO_ID_CACHE = {}
+
+# カテゴリ ID のキャッシュ（プロセス内で共有）
+_CATEGORY_ID_CACHE = {}
+
 # 必須環境変数
 REQUIRED_ENV_VARS = ["GITHUB_TOKEN"]
 
