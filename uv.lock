@@ -460,7 +460,7 @@ wheels = [
 ]
 
 [[package]]
-name = "github-discuss-mcp"
+name = "github-discuss"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

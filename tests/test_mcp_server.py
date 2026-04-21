@@ -7,8 +7,8 @@ from httpx import Response
 from unittest.mock import AsyncMock, patch, MagicMock
 from contextvars import ContextVar
 
-from github_discuss_mcp.main import server, list_tools, call_tool
-from github_discuss_mcp.github_api import GitHubDiscussionsAPI
+from github_discuss.main import server, list_tools, call_tool
+from github_discuss.github_api import GitHubDiscussionsAPI
 
 
 class TestListTools:

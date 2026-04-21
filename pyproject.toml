@@ -1,5 +1,5 @@
 [project]
-name = "github-discuss-mcp"
+name = "github-discuss"
 version = "0.1.0"
 description = "MCP server and CLI tool for posting to GitHub Discussions"
 readme = "README.md"
@@ -17,8 +17,8 @@ dependencies = [
 ]
 
 [project.scripts]
-github-discuss-mcp = "github_discuss_mcp.main:run"
-github-discuss = "github_discuss_mcp.cli:app"
+github-discuss-mcp = "github_discuss.main:run"
+github-discuss = "github_discuss.cli:app"
 
 [build-system]
 requires = ["hatchling"]

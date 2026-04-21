@@ -1,4 +1,4 @@
-# github-discuss-mcp
+# github-discuss
 
 MCP server and CLI tool for posting to GitHub Discussions.
 
@@ -67,9 +67,9 @@ GITHUB_APP_ID=3442413                         # GitHub App
 GITHUB_APP_PRIVATE_KEY=/home/kench/.github/utena-qwen-private-key.pem
 GITHUB_APP_INSTALLATION_ID=xxxxxxxxx
 
-# Repository info (default: utenadev/github-discuss-mcp)
+# Repository info (default: utenadev/github-discuss)
 GITHUB_DISCUSS_OWNER=utenadev
-GITHUB_DISCUSS_REPO=github-discuss-mcp
+GITHUB_DISCUSS_REPO=github-discuss
 
 # Optional: Cache IDs (reduce API calls)
 GITHUB_DISCUSS_REPO_ID=R_kgDO...
@@ -132,7 +132,7 @@ uv run github-discuss search "login error"
 |-----------|------|-----------|
 | `-c, --category` | Category name (general, ideas, q-a, show-and-tell) | general |
 | `-o, --owner` | GitHub owner name | env var or utenadev |
-| `-r, --repo` | GitHub repository name | env var or github-discuss-mcp |
+| `-r, --repo` | GitHub repository name | env var or github-discuss |
 | `-n, --dry-run` | Dry run mode (no actual post) | false |
 
 #### Flexible Category Name Matching
@@ -149,7 +149,7 @@ All of the following are recognized as `q-a`:
 #### Start Server
 
 ```bash
-uv run github-discuss-mcp
+uv run github-discuss
 ```
 
 #### Client Configuration
@@ -161,13 +161,13 @@ uv run github-discuss-mcp
   "mcpServers": {
     "github-discuss": {
       "command": "uv",
-      "args": ["run", "github-discuss-mcp"],
+      "args": ["run", "github-discuss"],
       "env": {
         "GITHUB_APP_ID": "3442413",
         "GITHUB_APP_PRIVATE_KEY": "/home/kench/.github/utena-qwen-private-key.pem",
         "GITHUB_APP_INSTALLATION_ID": "xxxxxxxxx",
         "GITHUB_DISCUSS_OWNER": "utenadev",
-        "GITHUB_DISCUSS_REPO": "github-discuss-mcp"
+        "GITHUB_DISCUSS_REPO": "github-discuss"
       }
     }
   }
@@ -208,7 +208,7 @@ uv run github-discuss-mcp
 | Variable | Description | Default |
 |--------|------|-----------|
 | `GITHUB_DISCUSS_OWNER` | GitHub owner name | utenadev |
-| `GITHUB_DISCUSS_REPO` | Repository name | github-discuss-mcp |
+| `GITHUB_DISCUSS_REPO` | Repository name | github-discuss |
 | `GITHUB_DISCUSS_REPO_ID` | Repository ID (cache) | Auto-fetch |
 | `GITHUB_DISCUSS_CATEGORY_GENERAL` | general category ID | Auto-fetch |
 | `GITHUB_DISCUSS_CATEGORY_IDEAS` | ideas category ID | Auto-fetch |
@@ -222,7 +222,7 @@ Legacy `AI_LOUNGE_*` environment variables are still supported.
 ## Directory Structure
 
 ```
-github-discuss-mcp/
+github-discuss/
 ├── src/github_discuss_mcp/     # Main source code
 │   ├── auth.py                 # Authentication (GitHub App / Token)
 │   ├── cli.py                  # CLI commands

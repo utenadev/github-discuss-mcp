@@ -5,7 +5,7 @@ import respx
 from httpx import Response
 from typer.testing import CliRunner
 
-from github_discuss_mcp.cli import app
+from github_discuss.cli import app
 
 runner = CliRunner()
 

@@ -18,8 +18,8 @@ from dotenv import load_dotenv
 # .env ファイルから環境変数を読み込む
 load_dotenv()
 
-from github_discuss_mcp.github_api import GitHubDiscussionsAPI, DiscussionInput
-from github_discuss_mcp.utils import (
+from github_discuss.github_api import GitHubDiscussionsAPI, DiscussionInput
+from github_discuss.utils import (
     resolve_category_id,
     get_repo_id_cached,
     DEFAULT_OWNER,

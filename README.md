@@ -1,4 +1,4 @@
-# github-discuss-mcp
+# github-discuss
 
 GitHub Discussions に投稿するための MCP サーバーおよび CLI ツール。
 
@@ -67,9 +67,9 @@ GITHUB_APP_ID=3442413                         # GitHub App
 GITHUB_APP_PRIVATE_KEY=/home/kench/.github/utena-qwen-private-key.pem
 GITHUB_APP_INSTALLATION_ID=xxxxxxxxx
 
-# リポジトリ情報（デフォルト：utenadev/github-discuss-mcp）
+# リポジトリ情報（デフォルト：utenadev/github-discuss）
 GITHUB_DISCUSS_OWNER=utenadev
-GITHUB_DISCUSS_REPO=github-discuss-mcp
+GITHUB_DISCUSS_REPO=github-discuss
 
 # オプション：キャッシュ用 ID（API コール削減）
 GITHUB_DISCUSS_REPO_ID=R_kgDO...
@@ -132,7 +132,7 @@ uv run github-discuss search "ログイン エラー"
 |-----------|------|-----------|
 | `-c, --category` | カテゴリ名（general, ideas, q-a, show-and-tell） | general |
 | `-o, --owner` | GitHub オーナー名 | 環境変数または utenadev |
-| `-r, --repo` | GitHub リポジトリ名 | 環境変数または github-discuss-mcp |
+| `-r, --repo` | GitHub リポジトリ名 | 環境変数または github-discuss |
 | `-n, --dry-run` | ドライランモード（投稿しない） | false |
 
 #### カテゴリ名の柔軟なマッチング
@@ -149,7 +149,7 @@ uv run github-discuss search "ログイン エラー"
 #### サーバーの起動
 
 ```bash
-uv run github-discuss-mcp
+uv run github-discuss
 ```
 
 #### クライアント設定例
@@ -161,13 +161,13 @@ uv run github-discuss-mcp
   "mcpServers": {
     "github-discuss": {
       "command": "uv",
-      "args": ["run", "github-discuss-mcp"],
+      "args": ["run", "github-discuss"],
       "env": {
         "GITHUB_APP_ID": "3442413",
         "GITHUB_APP_PRIVATE_KEY": "/home/kench/.github/utena-qwen-private-key.pem",
         "GITHUB_APP_INSTALLATION_ID": "xxxxxxxxx",
         "GITHUB_DISCUSS_OWNER": "utenadev",
-        "GITHUB_DISCUSS_REPO": "github-discuss-mcp"
+        "GITHUB_DISCUSS_REPO": "github-discuss"
       }
     }
   }
@@ -208,7 +208,7 @@ uv run github-discuss-mcp
 | 変数名 | 説明 | デフォルト |
 |--------|------|-----------|
 | `GITHUB_DISCUSS_OWNER` | GitHub オーナー名 | utenadev |
-| `GITHUB_DISCUSS_REPO` | リポジトリ名 | github-discuss-mcp |
+| `GITHUB_DISCUSS_REPO` | リポジトリ名 | github-discuss |
 | `GITHUB_DISCUSS_REPO_ID` | リポジトリ ID（キャッシュ用） | 自動取得 |
 | `GITHUB_DISCUSS_CATEGORY_GENERAL` | general カテゴリ ID | 自動取得 |
 | `GITHUB_DISCUSS_CATEGORY_IDEAS` | ideas カテゴリ ID | 自動取得 |
@@ -222,7 +222,7 @@ uv run github-discuss-mcp
 ## ディレクトリ構成
 
 ```
-github-discuss-mcp/
+github-discuss/
 ├── src/github_discuss_mcp/     # 本流コード
 │   ├── auth.py                 # 認証管理（GitHub App / Token）
 │   ├── cli.py                  # CLI コマンド

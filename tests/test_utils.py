@@ -5,7 +5,7 @@ import pytest
 import respx
 from httpx import Response
 
-from github_discuss_mcp.utils import (
+from github_discuss.utils import (
     get_category_id_from_env,
     resolve_category_id,
     get_repo_id_cached,
@@ -15,7 +15,7 @@ from github_discuss_mcp.utils import (
     DEFAULT_OWNER,
     DEFAULT_REPO,
 )
-from github_discuss_mcp.github_api import GitHubDiscussionsAPI
+from github_discuss.github_api import GitHubDiscussionsAPI
 
 
 class TestGetCategoryIdFromEnv:

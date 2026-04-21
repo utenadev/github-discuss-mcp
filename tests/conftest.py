@@ -4,7 +4,7 @@ import pytest
 import respx
 from httpx import Response
 
-from github_discuss_mcp.github_api import (
+from github_discuss.github_api import (
     GitHubDiscussionsAPI,
     DiscussionInput,
     DiscussionResult,
