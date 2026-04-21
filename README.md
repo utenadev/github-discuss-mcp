@@ -1,6 +1,6 @@
 # github-discuss
 
-GitHub Discussions に投稿するための MCP サーバーおよび CLI ツール。
+GitHub Discussions に投稿するための CLI ツールおよび MCP サーバー。
 
 ## 機能
 
