@@ -21,12 +21,6 @@ from .github_api import GitHubDiscussionsAPI
 DEFAULT_OWNER = "utenadev"
 DEFAULT_REPO = "github-discuss-mcp"
 
-# リポジトリ ID のキャッシュ（プロセス内で共有）
-_REPO_ID_CACHE = {}
-
-# カテゴリ ID のキャッシュ（プロセス内で共有）
-_CATEGORY_ID_CACHE = {}
-
 # カテゴリ名の環境変数マップ
 # 汎用名を主に使用し、後方互換のために ai_lounge 名義も残す
 CATEGORY_ENV_VARS = {
@@ -50,6 +44,39 @@ REQUIRED_ENV_VARS = ["GITHUB_TOKEN"]
 
 # オプショナル環境変数（警告のみ）
 OPTIONAL_ENV_VARS = ["GITHUB_DISCUSS_REPO_ID", "AI_LOUNGE_REPO_ID"]
+
+
+def _parse_repo_info(
+    owner: Optional[str] = None,
+    repo: Optional[str] = None
+) -> tuple[str, str]:
+    """リポジトリ情報を解析する（新形式優先、旧形式は後方互換）。
+
+    優先順位：
+    1. GITHUB_DISCUSS_REPO=owner/repo（新形式）
+    2. GITHUB_DISCUSS_OWNER + GITHUB_DISCUSS_REPO（旧形式）
+    3. デフォルト値
+
+    Args:
+        owner: リポジトリオーナー（None の場合は環境変数から取得）
+        repo: リポジトリ名（None の場合は環境変数から取得）
+
+    Returns:
+        (owner, repo) のタプル
+    """
+    # 新形式：GITHUB_DISCUSS_REPO=owner/repo
+    repo_full = os.getenv("GITHUB_DISCUSS_REPO")
+    if repo_full and "/" in repo_full:
+        parts = repo_full.split("/", 1)
+        return parts[0], parts[1]
+
+    # 旧形式：GITHUB_DISCUSS_OWNER + GITHUB_DISCUSS_REPO（後方互換）
+    if owner is None:
+        owner = os.getenv("GITHUB_DISCUSS_OWNER", DEFAULT_OWNER)
+    if repo is None:
+        repo = repo_full if repo_full else DEFAULT_REPO
+
+    return owner, repo
 
 
 def get_category_id_from_env(category: str) -> Optional[str]:
@@ -139,12 +166,9 @@ async def resolve_category_id(
         _CATEGORY_ID_CACHE[cache_key] = category_id
         return category_id
 
-    # Step 2: リポジトリ情報を決定
-    # 環境変数優先、次に引数、最後にデフォルト値
-    if repo_owner is None:
-        repo_owner = os.getenv("GITHUB_DISCUSS_OWNER", DEFAULT_OWNER)
-    if repo_name is None:
-        repo_name = os.getenv("GITHUB_DISCUSS_REPO", DEFAULT_REPO)
+    # Step 2: リポジトリ情報を決定（新形式優先、旧形式は後方互換）
+    if repo_owner is None or repo_name is None:
+        repo_owner, repo_name = _parse_repo_info(repo_owner, repo_name)
 
     # Step 3: カテゴリ名を正規化
     normalized_name = normalize_category_name(category_name)
@@ -205,11 +229,9 @@ async def get_repo_id_cached(
             _REPO_ID_CACHE[cache_key] = repo_id
             return repo_id
 
-    # リポジトリ情報を決定
-    if owner is None:
-        owner = os.getenv("GITHUB_DISCUSS_OWNER", DEFAULT_OWNER)
-    if repo is None:
-        repo = os.getenv("GITHUB_DISCUSS_REPO", DEFAULT_REPO)
+    # リポジトリ情報を決定（新形式優先、旧形式は後方互換）
+    if owner is None or repo is None:
+        owner, repo = _parse_repo_info(owner, repo)
 
     # API で取得
     resolved = await api.get_repository_id(owner, repo)

@@ -10,6 +10,7 @@ from github_discuss_mcp.utils import (
     resolve_category_id,
     get_repo_id_cached,
     validate_env,
+    _parse_repo_info,
     CATEGORY_ENV_VARS,
     DEFAULT_OWNER,
     DEFAULT_REPO,
@@ -255,3 +256,54 @@ class TestValidateEnv:
         warnings = validate_env()
         # どちらかの環境変数に関する警告が含まれることを確認
         assert any("REPO_ID" in w for w in warnings)
+
+
+class TestParseRepoInfo:
+    """_parse_repo_info 関数のテスト。"""
+
+    def test_new_format_slash(self, monkeypatch):
+        """新形式：GITHUB_DISCUSS_REPO=owner/repo"""
+        monkeypatch.setenv("GITHUB_DISCUSS_REPO", "lifemate-ai/ai-lounge")
+        monkeypatch.delenv("GITHUB_DISCUSS_OWNER", raising=False)
+        owner, repo = _parse_repo_info()
+        assert owner == "lifemate-ai"
+        assert repo == "ai-lounge"
+
+    def test_new_format_takes_precedence(self, monkeypatch):
+        """新形式が旧形式より優先される。"""
+        monkeypatch.setenv("GITHUB_DISCUSS_REPO", "lifemate-ai/ai-lounge")
+        monkeypatch.setenv("GITHUB_DISCUSS_OWNER", "old-owner")
+        owner, repo = _parse_repo_info()
+        assert owner == "lifemate-ai"
+        assert repo == "ai-lounge"
+
+    def test_old_format_fallback(self, monkeypatch):
+        """旧形式：GITHUB_DISCUSS_OWNER + GITHUB_DISCUSS_REPO"""
+        monkeypatch.setenv("GITHUB_DISCUSS_OWNER", "lifemate-ai")
+        monkeypatch.setenv("GITHUB_DISCUSS_REPO", "ai-lounge")
+        owner, repo = _parse_repo_info()
+        assert owner == "lifemate-ai"
+        assert repo == "ai-lounge"
+
+    def test_old_format_partial(self, monkeypatch):
+        """旧形式：owner または repo のみ指定"""
+        monkeypatch.setenv("GITHUB_DISCUSS_REPO", "ai-lounge")
+        monkeypatch.delenv("GITHUB_DISCUSS_OWNER", raising=False)
+        owner, repo = _parse_repo_info()
+        assert owner == DEFAULT_OWNER
+        assert repo == "ai-lounge"
+
+    def test_default_values(self, monkeypatch):
+        """デフォルト値"""
+        monkeypatch.delenv("GITHUB_DISCUSS_REPO", raising=False)
+        monkeypatch.delenv("GITHUB_DISCUSS_OWNER", raising=False)
+        owner, repo = _parse_repo_info()
+        assert owner == DEFAULT_OWNER
+        assert repo == DEFAULT_REPO
+
+    def test_explicit_args(self, monkeypatch):
+        """明示的な引数は環境変数より優先"""
+        monkeypatch.setenv("GITHUB_DISCUSS_REPO", "env-repo")
+        owner, repo = _parse_repo_info(owner="arg-owner", repo="arg-repo")
+        assert owner == "arg-owner"
+        assert repo == "arg-repo"
