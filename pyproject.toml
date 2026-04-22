@@ -1,6 +1,6 @@
 [project]
 name = "github-discuss"
-version = "0.1.0"
+version = "0.1.1"
 description = "MCP server and CLI tool for posting to GitHub Discussions"
 readme = "README.md"
 requires-python = ">=3.10"
